@@ -100,11 +100,31 @@ export type PreviewResult =
 
 export type CategorySource = 'system' | 'rule' | 'manual';
 
+export type CategoryType = 'expense' | 'income' | 'transfer' | 'ignore';
+
+export type Category = {
+  id: string;
+  name: string;
+  type: CategoryType;
+  color: string;
+};
+
+export type RuleField = 'counterparty' | 'mcc' | 'details' | 'kind';
+export type RuleMatch = 'equals' | 'contains' | 'regex';
+
+export type Rule = {
+  id: string;
+  field: RuleField;
+  match: RuleMatch;
+  pattern: string;
+  categoryId: string;
+  priority: number;
+};
+
 export type StoredTransaction = RowFacts & {
   id: string;
   importBatchId: string;
-  categoryId: string | null;
-  categorySource: CategorySource | null;
+  manualCategoryId: string | null;
 };
 
 export type Transaction = StoredTransaction & DerivedFields;

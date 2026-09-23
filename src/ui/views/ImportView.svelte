@@ -81,8 +81,7 @@
         amountMinor: row.amountMinor,
         details: row.details,
         importBatchId: batchId,
-        categoryId: null,
-        categorySource: null,
+        manualCategoryId: null,
       })),
     );
 

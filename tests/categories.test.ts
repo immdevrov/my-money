@@ -1,8 +1,17 @@
 import { expect, test } from 'vitest';
-import { render } from 'vitest-browser-svelte';
+import { cleanup, render } from 'vitest-browser-svelte';
 import App from '../src/App.svelte';
 import CategoriesView from '../src/ui/views/CategoriesView.svelte';
+import TransactionsView from '../src/ui/views/TransactionsView.svelte';
+import { importRows } from './helpers/importRows';
+import type { StatementCell } from './helpers/makeStatement';
 import { remount } from './helpers/remount';
+
+const SHOP_ALPHA: StatementCell[] = [
+  '14/03/2025',
+  'Payment - Amount: GEL10.00; Merchant: Shop Alpha, Tbilisi; MCC:1001; Date: 14/03/2025 10:00; Card No: ****1111',
+  -10,
+];
 
 function tableRows(screen: Awaited<ReturnType<typeof render>>) {
   return screen.getByRole('table', { name: 'Categories' }).getByRole('row');
@@ -106,4 +115,32 @@ test('deleting a category with no rules or manual assignments confirms with zero
 
   await screen.getByRole('button', { name: /^Delete$/ }).click();
   await expect.element(screen.getByRole('cell', { name: /^Groceries$/ })).not.toBeInTheDocument();
+});
+
+test('renaming a category in CategoriesView changes the name a transaction row shows', async () => {
+  await importRows([SHOP_ALPHA]);
+
+  let screen = await render(CategoriesView);
+  await addCategory(screen, 'Groceries');
+
+  cleanup();
+  screen = await render(TransactionsView);
+  const select = screen.getByRole('combobox', { name: 'Category for Shop Alpha' });
+  await select.selectOptions(screen.getByRole('option', { name: /^Groceries$/ }));
+  await expect
+    .element(screen.getByRole('option', { name: /^Groceries$/, selected: true }))
+    .toBeInTheDocument();
+
+  cleanup();
+  screen = await render(CategoriesView);
+  await screen.getByRole('button', { name: 'Edit Groceries' }).click();
+  await screen.getByLabelText('Name').fill('Produce');
+  await screen.getByRole('button', { name: 'Save category' }).click();
+
+  cleanup();
+  screen = await render(TransactionsView);
+  await expect
+    .element(screen.getByRole('option', { name: /^Produce$/, selected: true }))
+    .toBeInTheDocument();
+  await expect.element(screen.getByRole('option', { name: /^Groceries$/ })).not.toBeInTheDocument();
 });

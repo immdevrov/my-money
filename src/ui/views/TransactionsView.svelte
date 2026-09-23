@@ -1,14 +1,17 @@
 <script lang="ts">
   import { liveQuery } from 'dexie';
-  import type { Transaction } from '../../domain/types';
-  import { listAll } from '../../db/transactions';
+  import type { Category, Transaction } from '../../domain/types';
+  import { listCategories, saveCategory } from '../../db/categories';
+  import { clearManualCategory, listAll, setManualCategory } from '../../db/transactions';
   import { toGelMinor } from '../../aggregate/convert';
   import { formatMinor } from '../../import/amount';
-  import { pairConversions } from '../../pairing/pairConversions';
   import { buildRateTable, rateFor } from '../../pairing/rates';
+  import CategoryForm from '../components/CategoryForm.svelte';
 
   const BASE_CURRENCY = 'GEL';
   const MISSING_RATE = 'no rate';
+  const UNCATEGORIZED = 'uncategorized';
+  const NEW_CATEGORY = 'new-category';
 
   type SortKey = 'effectiveDate' | 'postingDate' | 'kind' | 'counterparty' | 'amountMinor';
 
@@ -20,10 +23,13 @@
     { key: 'amountMinor', label: 'Amount' },
   ];
 
-  const transactions = liveQuery(() => listAll());
+  const transactions = liveQuery(async () => listAll());
+  const categories = liveQuery(async () => listCategories());
 
   let sortKey = $state<SortKey>('effectiveDate');
   let ascending = $state(false);
+  let pendingSelections = $state<Record<string, string>>({});
+  let newCategoryRow = $state<Transaction | null>(null);
 
   const sorted = $derived.by(() => {
     const rows = [...($transactions ?? [])];
@@ -56,19 +62,10 @@
     return `${formatMinor(row.amountMinor)} ${row.currency}`;
   }
 
-  const paired = $derived(
-    new Set(
-      pairConversions(sorted.filter((row) => row.kind === 'conversion')).pairs.flatMap((pair) => [
-        pair.gelId,
-        pair.foreignId,
-      ]),
-    ),
-  );
-
   const rateTable = $derived(
     buildRateTable(
       sorted
-        .filter((row) => paired.has(row.id) && row.currency !== BASE_CURRENCY)
+        .filter((row) => row.paired && row.currency !== BASE_CURRENCY)
         .flatMap((row) =>
           row.conversionRateScaled === null
             ? []
@@ -88,7 +85,45 @@
 
   function pairStatus(row: Transaction): string {
     if (row.kind !== 'conversion') return '';
-    return paired.has(row.id) ? 'paired' : 'unpaired';
+    return row.paired ? 'paired' : 'unpaired';
+  }
+
+  function categoryName(categoryId: string | null): string {
+    return ($categories ?? []).find((category) => category.id === categoryId)?.name ?? '';
+  }
+
+  function selectValue(row: Transaction): string {
+    return pendingSelections[row.id] ?? row.categoryId ?? UNCATEGORIZED;
+  }
+
+  function clearPending(id: string) {
+    if (!(id in pendingSelections)) return;
+    const next = { ...pendingSelections };
+    delete next[id];
+    pendingSelections = next;
+  }
+
+  function onCategoryChange(row: Transaction, value: string) {
+    if (value === NEW_CATEGORY) {
+      pendingSelections = { ...pendingSelections, [row.id]: NEW_CATEGORY };
+      newCategoryRow = row;
+      return;
+    }
+    void setManualCategory(row.id, value);
+  }
+
+  function cancelNewCategory() {
+    if (newCategoryRow) clearPending(newCategoryRow.id);
+    newCategoryRow = null;
+  }
+
+  async function saveNewCategory(category: Category) {
+    await saveCategory(category);
+    if (newCategoryRow) {
+      await setManualCategory(newCategoryRow.id, category.id);
+      clearPending(newCategoryRow.id);
+    }
+    newCategoryRow = null;
   }
 </script>
 
@@ -108,6 +143,7 @@
         {/each}
         <th scope="col">Amount in GEL</th>
         <th scope="col">Pair status</th>
+        <th scope="col">Category</th>
       </tr>
     </thead>
     <tbody>
@@ -120,10 +156,43 @@
           <td>{amount(row)}</td>
           <td>{inGel(row)}</td>
           <td>{pairStatus(row)}</td>
+          <td>
+            {#if row.categorySource === 'system'}
+              {categoryName(row.categoryId)}
+            {:else}
+              <select
+                aria-label={`Category for ${row.counterparty}`}
+                value={selectValue(row)}
+                onchange={(event) => onCategoryChange(row, event.currentTarget.value)}
+              >
+                {#if row.categoryId === null}
+                  <option value={UNCATEGORIZED} disabled selected>Uncategorized</option>
+                {/if}
+                {#each $categories ?? [] as category (category.id)}
+                  <option value={category.id}>{category.name}</option>
+                {/each}
+                <option value={NEW_CATEGORY}>New category…</option>
+              </select>
+              {#if row.categorySource}
+                <span>{row.categorySource}</span>
+              {/if}
+              {#if row.categorySource === 'manual'}
+                <button type="button" onclick={() => void clearManualCategory(row.id)}>
+                  Reset category for {row.counterparty}
+                </button>
+              {/if}
+            {/if}
+          </td>
         </tr>
       {/each}
     </tbody>
   </table>
+{/if}
+
+{#if newCategoryRow}
+  <dialog open>
+    <CategoryForm categories={$categories ?? []} onsave={saveNewCategory} oncancel={cancelNewCategory} />
+  </dialog>
 {/if}
 
 <style>

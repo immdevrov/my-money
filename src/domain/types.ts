@@ -127,7 +127,13 @@ export type StoredTransaction = RowFacts & {
   manualCategoryId: string | null;
 };
 
-export type Transaction = StoredTransaction & DerivedFields;
+export type Transaction = StoredTransaction &
+  DerivedFields & {
+    paired: boolean;
+    categoryId: string | null;
+    categorySource: CategorySource | null;
+    ruleId: string | null;
+  };
 
 export type BatchCounts = { imported: number; duplicate: number; failed: number };
 

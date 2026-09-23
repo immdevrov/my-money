@@ -1,0 +1,39 @@
+{
+  "name": "budget-my",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "svelte-check --tsconfig ./tsconfig.json",
+    "fixtures": "tsx scripts/make-fixtures.ts",
+    "test": "vitest run --project behavior",
+    "pretest:import": "npm run fixtures",
+    "test:import": "vitest run --project import",
+    "pretest:all": "npm run fixtures",
+    "test:all": "vitest run --project behavior --project import",
+    "test:mutate": "vitest run --project behavior --project import",
+    "test:scratch": "vitest run --project scratch --passWithNoTests",
+    "mutate": "npm run fixtures && node scripts/mutate.mjs"
+  },
+  "dependencies": {
+    "dexie": "4.4.6",
+    "read-excel-file": "9.3.10"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.0",
+    "@types/node": "^24.10.1",
+    "@vitest/browser-playwright": "4.1.11",
+    "playwright": "1.57.0",
+    "svelte": "5.57.1",
+    "svelte-check": "4.7.6",
+    "tsx": "4.23.15",
+    "typescript": "6.0.3",
+    "vite": "8.3.0",
+    "vitest": "4.1.11",
+    "vitest-browser-svelte": "3.1.0",
+    "write-excel-file": "4.1.1"
+  }
+}

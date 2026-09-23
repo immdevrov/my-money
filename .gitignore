@@ -1,0 +1,8 @@
+node_modules/
+dist/
+scratch/
+*.xlsx
+budget-my-backup-*.json
+mutation-results.json
+mutation-logs/
+scripts/.mutation-journal.json

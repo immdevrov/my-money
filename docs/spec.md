@@ -91,6 +91,7 @@ Conversion pairing:
 - Pair them by (postingDate, rate, opposite direction).
 - Never pair by computed amount: bank rounding differs by 0.01–0.02.
 - Paired conversions are internal movement: category type `transfer`, excluded from income and spending.
+- A pair is one movement stored as two rows. Any aggregation that does include transfers, such as a future cash-flow or per-currency view, counts the pair once, never as an income plus a payment.
 - An unpaired conversion row → import warning.
 - Pairing runs over all unpaired conversion rows in the DB after each import, not only the new batch.
 
@@ -127,8 +128,7 @@ Transaction {
   bank | null
   originalAmountMinor | null
   originalCurrency | null
-  categoryId | null
-  categorySource: 'system' | 'rule' | 'manual' | null
+  manualCategoryId | null
   importBatchId
 }
 
@@ -165,7 +165,6 @@ Settings { baseCurrency: 'GEL', manualRates: Record<currency, number> }
   5. Confirm.
   6. Persist.
   7. Conversion pairing.
-  8. Categorize new rows.
 - The preview shows:
   - Every parsed row with its extracted fields.
   - Counts per kind.
@@ -175,32 +174,10 @@ Settings { baseCurrency: 'GEL', manualRates: Record<currency, number> }
 - Deleting an import batch removes its transactions.
 
 ## Categorization
-- Evaluation order:
-  1. System assignment.
-  2. Manual assignment (never touched).
-  3. Rules by ascending priority number; first match wins.
-  4. Uncategorized.
-- System assignment: a paired conversion → "Currency conversion". Rules cannot override it.
-- Any rule change re-applies rules to all non-manual, non-system transactions.
-- "Create rule from transaction" action: prefilled with `counterparty equals <value>`.
-
-Seeded categories:
-
-| name                | type     |
-|---------------------|----------|
-| Groceries           | expense  |
-| Eating out          | expense  |
-| Food delivery       | expense  |
-| Transport           | expense  |
-| Utilities           | expense  |
-| Health              | expense  |
-| Shopping            | expense  |
-| Entertainment       | expense  |
-| Bank fees           | expense  |
-| Other               | expense  |
-| Income              | income   |
-| Currency conversion | transfer |
-| Own transfers       | transfer |
+Specified in `docs/specs/phase-4-categorization.md`. In short:
+- Evaluation order: system (a paired conversion → Currency conversion), then manual, then rules by ascending priority with first match winning, then uncategorized.
+- Only the manual choice is stored. System and rule assignments are derived on every read, so a rule change needs no re-apply pass.
+- No rules are seeded. The only seeded category is Currency conversion.
 
 No rules are seeded. The user creates every rule.
 
@@ -277,15 +254,7 @@ Phase 3, pairing and rates:
 - A non-GEL transaction shows its GEL amount at the nearest earlier rate.
 - A transaction with no earlier rate shows the missing-rate marker.
 
-Phase 4, categorization:
-- After import, a paired conversion shows Currency conversion and every other row is uncategorized.
-- Unmatched rows appear under the Uncategorized filter.
-- "Create rule from transaction" recategorizes all matching rows, and the Rules view shows the match count.
-- A counterparty rule beats an mcc rule.
-- A manual assignment survives rule changes.
-- No rule can recategorize a paired conversion.
-- Reordering rule priority changes the outcome.
-- Each Transactions filter — period, category, kind, uncategorized, text — produces the expected rows.
+Phase 4, categorization: see `docs/specs/phase-4-categorization.md`.
 
 Phase 5, comparison:
 - With `freezeDate`, comparison table values for every period type and baseline match the expected values.

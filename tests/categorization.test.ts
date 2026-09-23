@@ -41,7 +41,9 @@ test('a paired conversion shows Currency conversion with no select, and every ot
   const screen = await render(TransactionsView);
 
   await expect.element(screen.getByRole('cell', { name: /^Currency conversion$/ })).toHaveLength(4);
-  await expect.element(screen.getByRole('combobox')).toHaveLength(1);
+  await expect
+    .element(screen.getByRole('table', { name: 'Transactions' }).getByRole('combobox'))
+    .toHaveLength(1);
 
   const select = screen.getByRole('combobox', { name: 'Category for Shop Alpha' });
   await expect.element(select).toHaveValue('uncategorized');

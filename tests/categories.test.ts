@@ -126,7 +126,7 @@ test('renaming a category in CategoriesView changes the name a transaction row s
   cleanup();
   screen = await render(TransactionsView);
   const select = screen.getByRole('combobox', { name: 'Category for Shop Alpha' });
-  await select.selectOptions(screen.getByRole('option', { name: /^Groceries$/ }));
+  await select.selectOptions(select.getByRole('option', { name: /^Groceries$/ }));
   await expect
     .element(screen.getByRole('option', { name: /^Groceries$/, selected: true }))
     .toBeInTheDocument();

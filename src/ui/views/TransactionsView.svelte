@@ -1,9 +1,10 @@
 <script lang="ts">
   import { liveQuery } from 'dexie';
-  import type { Category, Transaction } from '../../domain/types';
+  import { DETAILS_KINDS, type Category, type Transaction } from '../../domain/types';
   import { listCategories, saveCategory } from '../../db/categories';
   import { clearManualCategory, listAll, setManualCategory } from '../../db/transactions';
   import { toGelMinor } from '../../aggregate/convert';
+  import { inPeriod, periodOptions } from '../../aggregate/period';
   import { formatMinor } from '../../import/amount';
   import { buildRateTable, rateFor } from '../../pairing/rates';
   import CategoryForm from '../components/CategoryForm.svelte';
@@ -30,6 +31,10 @@
   let ascending = $state(false);
   let pendingSelections = $state<Record<string, string>>({});
   let newCategoryRow = $state<Transaction | null>(null);
+  let periodFilter = $state('');
+  let categoryFilter = $state('');
+  let kindFilter = $state('');
+  let searchFilter = $state('');
 
   const sorted = $derived.by(() => {
     const rows = [...($transactions ?? [])];
@@ -43,6 +48,30 @@
     });
 
     return rows;
+  });
+
+  const periods = $derived(periodOptions(sorted.map((row) => row.effectiveDate)));
+
+  const filtered = $derived.by(() => {
+    const search = searchFilter.trim().toLowerCase();
+
+    return sorted.filter((row) => {
+      if (!inPeriod(row.effectiveDate, periodFilter)) return false;
+      if (categoryFilter === UNCATEGORIZED) {
+        if (row.categoryId !== null) return false;
+      } else if (categoryFilter !== '' && row.categoryId !== categoryFilter) {
+        return false;
+      }
+      if (kindFilter !== '' && row.kind !== kindFilter) return false;
+      if (
+        search !== '' &&
+        !row.counterparty.toLowerCase().includes(search) &&
+        !row.details.toLowerCase().includes(search)
+      ) {
+        return false;
+      }
+      return true;
+    });
   });
 
   function toggle(key: SortKey) {
@@ -132,61 +161,112 @@
 {#if sorted.length === 0}
   <p>No transactions yet. Import a statement to get started.</p>
 {:else}
-  <table>
-    <caption>Transactions</caption>
-    <thead>
-      <tr>
-        {#each COLUMNS as column (column.key)}
-          <th scope="col" aria-sort={ariaSort(column.key)}>
-            <button type="button" onclick={() => toggle(column.key)}>{column.label}</button>
-          </th>
+  <div class="filters">
+    <p class="field">
+      <label for="filter-period">Period</label>
+      <select id="filter-period" bind:value={periodFilter}>
+        <option value="">All periods</option>
+        <optgroup label="Years">
+          {#each periods.years as option (option.value)}
+            <option value={option.value}>{option.label}</option>
+          {/each}
+        </optgroup>
+        <optgroup label="Quarters">
+          {#each periods.quarters as option (option.value)}
+            <option value={option.value}>{option.label}</option>
+          {/each}
+        </optgroup>
+        <optgroup label="Months">
+          {#each periods.months as option (option.value)}
+            <option value={option.value}>{option.label}</option>
+          {/each}
+        </optgroup>
+      </select>
+    </p>
+    <p class="field">
+      <label for="filter-category">Category</label>
+      <select id="filter-category" bind:value={categoryFilter}>
+        <option value="">All categories</option>
+        <option value={UNCATEGORIZED}>Uncategorized</option>
+        {#each $categories ?? [] as category (category.id)}
+          <option value={category.id}>{category.name}</option>
         {/each}
-        <th scope="col">Amount in GEL</th>
-        <th scope="col">Pair status</th>
-        <th scope="col">Category</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#each sorted as row (row.id)}
+      </select>
+    </p>
+    <p class="field">
+      <label for="filter-kind">Kind</label>
+      <select id="filter-kind" bind:value={kindFilter}>
+        <option value="">All kinds</option>
+        {#each DETAILS_KINDS as kind (kind)}
+          <option value={kind}>{kind}</option>
+        {/each}
+      </select>
+    </p>
+    <p class="field">
+      <label for="filter-search">Search</label>
+      <input id="filter-search" type="search" bind:value={searchFilter} />
+    </p>
+  </div>
+
+  {#if filtered.length === 0}
+    <p>No transactions match the filters.</p>
+  {:else}
+    <table>
+      <caption>Transactions</caption>
+      <thead>
         <tr>
-          <td>{row.effectiveDate}</td>
-          <td>{row.postingDate}</td>
-          <td>{row.kind}</td>
-          <td>{row.counterparty}</td>
-          <td>{amount(row)}</td>
-          <td>{inGel(row)}</td>
-          <td>{pairStatus(row)}</td>
-          <td>
-            {#if row.categorySource === 'system'}
-              {categoryName(row.categoryId)}
-            {:else}
-              <select
-                aria-label={`Category for ${row.counterparty}`}
-                value={selectValue(row)}
-                onchange={(event) => onCategoryChange(row, event.currentTarget.value)}
-              >
-                {#if row.categoryId === null}
-                  <option value={UNCATEGORIZED} disabled selected>Uncategorized</option>
-                {/if}
-                {#each $categories ?? [] as category (category.id)}
-                  <option value={category.id}>{category.name}</option>
-                {/each}
-                <option value={NEW_CATEGORY}>New category…</option>
-              </select>
-              {#if row.categorySource}
-                <span>{row.categorySource}</span>
-              {/if}
-              {#if row.categorySource === 'manual'}
-                <button type="button" onclick={() => void clearManualCategory(row.id)}>
-                  Reset category for {row.counterparty}
-                </button>
-              {/if}
-            {/if}
-          </td>
+          {#each COLUMNS as column (column.key)}
+            <th scope="col" aria-sort={ariaSort(column.key)}>
+              <button type="button" onclick={() => toggle(column.key)}>{column.label}</button>
+            </th>
+          {/each}
+          <th scope="col">Amount in GEL</th>
+          <th scope="col">Pair status</th>
+          <th scope="col">Category</th>
         </tr>
-      {/each}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {#each filtered as row (row.id)}
+          <tr>
+            <td>{row.effectiveDate}</td>
+            <td>{row.postingDate}</td>
+            <td>{row.kind}</td>
+            <td>{row.counterparty}</td>
+            <td>{amount(row)}</td>
+            <td>{inGel(row)}</td>
+            <td>{pairStatus(row)}</td>
+            <td>
+              {#if row.categorySource === 'system'}
+                {categoryName(row.categoryId)}
+              {:else}
+                <select
+                  aria-label={`Category for ${row.counterparty}`}
+                  value={selectValue(row)}
+                  onchange={(event) => onCategoryChange(row, event.currentTarget.value)}
+                >
+                  {#if row.categoryId === null}
+                    <option value={UNCATEGORIZED} disabled selected>Uncategorized</option>
+                  {/if}
+                  {#each $categories ?? [] as category (category.id)}
+                    <option value={category.id}>{category.name}</option>
+                  {/each}
+                  <option value={NEW_CATEGORY}>New category…</option>
+                </select>
+                {#if row.categorySource}
+                  <span>{row.categorySource}</span>
+                {/if}
+                {#if row.categorySource === 'manual'}
+                  <button type="button" onclick={() => void clearManualCategory(row.id)}>
+                    Reset category for {row.counterparty}
+                  </button>
+                {/if}
+              {/if}
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  {/if}
 {/if}
 
 {#if newCategoryRow}
@@ -196,6 +276,18 @@
 {/if}
 
 <style>
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+
+  .filters .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
   table {
     border-collapse: collapse;
     width: 100%;

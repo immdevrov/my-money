@@ -10,6 +10,7 @@ In:
 - Drill-down from a comparison row to Transactions filtered to that category and period.
 - Transactions filters held in the URL.
 - The `freezeDate` test helper.
+- Rate lookup: a later rate in the same month can apply when it is nearer.
 
 Out:
 - Charts (phase 6).
@@ -32,6 +33,14 @@ gelAmount(row: Transaction, table: Rate[]): number | null     // minor units; nu
 - `rateTableFrom` builds the table from paired foreign-currency conversion rows, as `(postingDate, currency, conversionRateScaled)`. This moves the logic that `TransactionsView` holds today, and `TransactionsView` switches to it, so both views convert identically.
 - A GEL row returns its `amountMinor`.
 - A non-GEL row converts with `toGelMinor` at `rateFor(table, currency, effectiveDate)`, or returns `null` when there is no rate.
+
+### Rate lookup
+
+`rateFor` in `src/pairing/rates.ts` changes, so the Transactions GEL column and the Dashboard totals change together. For a row in currency C with `effectiveDate` D, there are two candidates:
+- **Before:** the latest rate for C dated on or before D, of any age.
+- **After:** the earliest rate for C dated after D, in the same calendar month as D.
+
+Whichever candidate is fewer days from D wins. A tie goes to the earlier one. With neither candidate, the row has no rate.
 
 ### Which rows count
 
@@ -181,6 +190,7 @@ App's `dashboard` route renders DashboardView instead of StubView.
 ```
 src/aggregate/period.ts        + PeriodType, periodOf, periodsInSpan, previousPeriod, periodLabel
 src/aggregate/gel.ts           rateTableFrom, gelAmount
+src/pairing/rates.ts           rateFor: nearest rate, later candidate limited to the same month
 src/aggregate/compare.ts       compare, Comparison types
 src/ui/hashQuery.ts            read and replace the hash query
 src/ui/views/DashboardView.svelte
@@ -202,6 +212,11 @@ tests/helpers/freezeDate.ts
 - A month-boundary card payment is counted in its effective month.
 - A zero baseline shows "—" for Change %.
 - The missing-rate exclusion count is shown, and the rows it counts are excluded from totals.
+- Rate lookup, in the Transactions GEL column:
+  - With no earlier rate, a later rate in the same month applies.
+  - A later same-month rate that is closer than an earlier rate beats it.
+  - An earlier rate that is closer, or the same distance away, beats a later one.
+  - A later rate never applies across a month boundary. This replaces the phase 3 test "a rate is not applied to a transaction dated before it", whose row and rate share a month.
 - Clicking a comparison table row opens Transactions filtered to that category and period. Back returns to the Dashboard with the same pickers and tab.
 - Uncategorized drill-down shows the period's uncategorized rows.
 - Transactions filters survive a remount through the URL. The Transactions nav link clears them.
@@ -228,6 +243,9 @@ A long spending list full of zeros hides the categories that moved. A category a
 
 ### The missing-rate count covers every number on screen
 A baseline can be lowered by missing rates just as much as the current value. Counting only the compared period would hide that.
+
+### A nearby later rate in the same month is fair
+Phase 3 applied only rates on or before a transaction's date. A foreign payment made a few days before the month's conversion then had no rate, and dropped out of every total, although that conversion's rate is a fair estimate of its cost. The nearest rate is the best estimate in either direction. A later rate is limited to the same calendar month, so a conversion never reaches back across a month boundary to price older spending.
 
 ### The URL owns the Transactions filters and the Dashboard state
 Drill-down needs to pass filters between views. Making the hash query the only store of filter state means a drill-down, a reload and Back all show the same thing, with no second copy of the state to keep in sync. `replaceState` keeps filter edits out of the history, while a drill-down link is a real navigation that Back undoes.

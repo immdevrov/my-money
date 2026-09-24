@@ -97,7 +97,7 @@ Conversion pairing:
 
 Rates:
 - The rate table is derived from conversion pairs as (date, currency, rate), where rate = GEL per 1 unit of the foreign currency.
-- A non-GEL transaction converts at the nearest rate on or before its `effectiveDate` for that currency.
+- A non-GEL transaction converts at the rate for that currency nearest its `effectiveDate`. Candidates are the nearest rate on or before that date, and the nearest later one within the same calendar month. A tie goes to the earlier rate. From phase 5; see `docs/specs/phase-5-dashboard.md`.
 - Fallback: a manual rate per currency in Settings.
 - A non-GEL transaction with no available rate:
   - Shows a missing-rate marker in the GEL column.

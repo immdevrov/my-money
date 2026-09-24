@@ -141,7 +141,7 @@ Every row carries all three baselines. There is no baseline parameter: the Dashb
 
 `missingRate` counts rows that would be counted but have no GEL amount, and whose period is one that a number on screen depends on:
 - the compared period, plus
-- when the pool has at least 3 periods: every pool period, and the previous period when it lies inside the span.
+- when the pool has at least 3 periods: every pool period. The previous period, whenever it lies inside the span, is itself a pool period.
 
 ## Routing and the URL
 

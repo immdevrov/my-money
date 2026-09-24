@@ -178,8 +178,7 @@ export function compare(input: {
   const previous = inSpan.has(previousCandidate) ? previousCandidate : null;
   const sufficient = pool.length >= MIN_POOL;
   const scope: Scope = { period, pool, previous, sufficient };
-  const baselinePeriods = previous === null ? pool : [...pool, previous];
-  const onScreen = new Set(sufficient ? [period, ...baselinePeriods] : [period]);
+  const onScreen = new Set(sufficient ? [period, ...pool] : [period]);
 
   const buckets: Record<Tab, TabBuckets> = { spending: emptyBuckets(), income: emptyBuckets() };
   let missingRate = 0;

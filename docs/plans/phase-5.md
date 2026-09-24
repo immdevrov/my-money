@@ -438,7 +438,7 @@ Added after Task 8, at the user's request. The spec's "Comparison", "Dashboard s
 
 **Behavior:**
 - **Median:** only the pool periods where the row's value is non-zero count. It needs at least 3 such periods per row; otherwise that row's median is `'insufficient'`. The total row applies the same rule to its per-period totals. Mean and previous are unchanged.
-- **Missing-rate scope:** the compared period, plus, when the pool has at least 3 periods, every pool period and the previous period when it lies inside the span.
+- **Missing-rate scope:** the compared period, plus, when the pool has at least 3 periods, every pool period (the previous period, when inside the span, is always one of them).
 - **Row visibility:** a row shows when `current` or any of the three values is non-zero, with insufficient counting as zero.
 - **UI:**
   - The Baseline select is removed, and `baseline` leaves the Dashboard query. A stale `baseline` key is ignored.

@@ -575,4 +575,12 @@ export const MUTATIONS = [
   ['M171 update writes the resolved period', DASHVIEW,
     'period: view?.period ?? query.period,',
     'period: query.period,'],
+  ['M172 median ignores zero periods', COMPARE,
+    '.filter((value) => value !== 0)', '.filter(() => true)'],
+  ['M173 median needs 3 non-zero periods', COMPARE,
+    'const MIN_MEDIAN_PERIODS = 3;', 'const MIN_MEDIAN_PERIODS = 2;'],
+  ['M174 positive percent carries a plus', DASHVIEW,
+    '`+${deltaPct}%`', '`${deltaPct}%`'],
+  ['M175 zero baseline shows a dash for the percent', DASHVIEW,
+    `deltaPct === null ? '—'`, `deltaPct === null ? ''`],
 ];

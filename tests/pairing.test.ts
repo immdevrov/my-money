@@ -79,6 +79,22 @@ const LEGACY_USD: StatementCell[] = [
   null,
 ];
 
+const USD_SAME_DAY_OTHER_RATE: StatementCell[] = [
+  '10/02/2025',
+  'Payment - Amount USD100.00; Foreign Exchange. FX Rate:3.1',
+  null,
+  -100,
+  null,
+];
+
+const STREAM_LATE: StatementCell[] = [
+  '25/02/2025',
+  'Payment - Amount: USD20.00; Merchant: Stream Beta, Online; MCC:1005',
+  null,
+  -20,
+  null,
+];
+
 async function uploadOnly(rows: StatementCell[][]) {
   const screen = await render(ImportView);
   await screen.getByLabelText('Statement file').upload(await makeStatement(rows, OPTIONS));
@@ -120,6 +136,14 @@ test('two foreign conversions do not pair with each other', async () => {
   await expect.element(screen.getByText('2 conversion rows could not be paired.')).toBeVisible();
 });
 
+test('conversions on the same day at different rates do not pair', async () => {
+  await importRows([CONVERSION_GEL, USD_SAME_DAY_OTHER_RATE], OPTIONS);
+  const screen = await render(TransactionsView);
+
+  await expect.element(screen.getByRole('cell', { name: /^unpaired$/ })).toHaveLength(2);
+  await expect.element(screen.getByRole('cell', { name: /^paired$/ })).not.toBeInTheDocument();
+});
+
 test('a pair split across two files pairs after the second import', async () => {
   await importRows([CONVERSION_GEL], OPTIONS);
 
@@ -138,6 +162,14 @@ test('a non-GEL transaction shows its GEL amount at the nearest earlier rate', a
   const screen = await render(TransactionsView);
 
   await expect.element(screen.getByRole('cell', { name: /^-54\.70$/ })).toBeVisible();
+});
+
+test('with several earlier rates, the most recent one applies', async () => {
+  await importRows([CONVERSION_GEL, CONVERSION_USD, LEGACY_GEL, LEGACY_USD, STREAM_LATE], OPTIONS);
+  const screen = await render(TransactionsView);
+
+  await expect.element(screen.getByRole('cell', { name: /^-40\.00$/ })).toBeVisible();
+  await expect.element(screen.getByRole('cell', { name: /^-54\.70$/ })).not.toBeInTheDocument();
 });
 
 test('a converted amount is rounded half-up, not truncated', async () => {

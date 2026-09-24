@@ -3,6 +3,7 @@
   import {
     compare,
     type Baseline,
+    type BaselineResult,
     type ComparisonRow,
     type ComparisonTable,
   } from '../../aggregate/compare';
@@ -18,10 +19,14 @@
   import { onHashChange, readQuery, replaceQuery } from '../hashQuery';
 
   type Tab = 'spending' | 'income';
-  type QueryKey = 'type' | 'period' | 'baseline' | 'tab';
+  type QueryKey = 'type' | 'period' | 'tab';
 
   const PERIOD_TYPES: readonly string[] = ['month', 'quarter', 'year'];
-  const BASELINES: readonly string[] = ['mean', 'median', 'previous'];
+  const BASELINE_COLUMNS: readonly { baseline: Baseline; label: string; vsLabel: string }[] = [
+    { baseline: 'mean', label: 'Mean', vsLabel: 'vs mean' },
+    { baseline: 'median', label: 'Median', vsLabel: 'vs median' },
+    { baseline: 'previous', label: 'Previous period', vsLabel: 'vs previous period' },
+  ];
   const TABS: readonly string[] = ['spending', 'income'];
 
   const transactions = liveQuery(async () => listAll());
@@ -32,7 +37,6 @@
     return {
       type: params.get('type') ?? '',
       period: params.get('period') ?? '',
-      baseline: params.get('baseline') ?? '',
       tab: params.get('tab') ?? '',
     };
   }
@@ -47,9 +51,6 @@
 
   const periodType = $derived(
     PERIOD_TYPES.includes(query.type) ? (query.type as PeriodType) : 'month',
-  );
-  const baseline = $derived(
-    BASELINES.includes(query.baseline) ? (query.baseline as Baseline) : 'mean',
   );
   const activeTab = $derived(TABS.includes(query.tab) ? (query.tab as Tab) : 'spending');
 
@@ -76,7 +77,6 @@
       today,
       type: periodType,
       period,
-      baseline,
     });
 
     return {
@@ -93,7 +93,6 @@
     replaceQuery({
       type: periodType,
       period: view?.period ?? query.period,
-      baseline,
       tab: activeTab,
     });
   }
@@ -103,13 +102,11 @@
     return `${n} ${noun} excluded from totals: no exchange rate.`;
   }
 
-  function signed(minor: number): string {
-    return minor > 0 ? `+${formatMinor(minor)}` : formatMinor(minor);
-  }
-
-  function percent(value: number | null): string {
-    if (value === null) return '—';
-    return value > 0 ? `+${value}%` : `${value}%`;
+  function vsText({ delta, deltaPct }: BaselineResult): string {
+    if (delta === null) return '';
+    const change = delta > 0 ? `+${formatMinor(delta)}` : formatMinor(delta);
+    const percent = deltaPct === null ? '—' : deltaPct > 0 ? `+${deltaPct}%` : `${deltaPct}%`;
+    return `${change} (${percent})`;
   }
 
   function drillHref(period: string, category?: string): string {
@@ -158,18 +155,6 @@
         {#each view.options as option (option.value)}
           <option value={option.value}>{option.label}</option>
         {/each}
-      </select>
-    </p>
-    <p class="field">
-      <label for="dashboard-baseline">Baseline</label>
-      <select
-        id="dashboard-baseline"
-        value={baseline}
-        onchange={(event) => update({ baseline: event.currentTarget.value })}
-      >
-        <option value="mean">Mean</option>
-        <option value="median">Median</option>
-        <option value="previous">Previous period</option>
       </select>
     </p>
   </div>
@@ -229,41 +214,42 @@
 {/if}
 
 {#snippet comparisonTable(caption: string, tableData: ComparisonTable, period: string)}
-  <table>
-    <caption>{caption}</caption>
-    <thead>
-      <tr>
-        <th scope="col">Category</th>
-        <th scope="col" class="number">Current</th>
-        <th scope="col" class="number">Baseline</th>
-        <th scope="col" class="number">Change</th>
-        <th scope="col" class="number">Change %</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#each tableData.rows as row (row.categoryId)}
-        {@render comparisonRow(row, drillHref(period, row.categoryId ?? 'uncategorized'))}
-      {/each}
-    </tbody>
-    <tfoot>
-      {@render comparisonRow(tableData.total, drillHref(period))}
-    </tfoot>
-  </table>
+  <div class="table-scroll">
+    <table>
+      <caption>{caption}</caption>
+      <thead>
+        <tr>
+          <th scope="col">Category</th>
+          <th scope="col" class="number">Current</th>
+          {#each BASELINE_COLUMNS as column (column.baseline)}
+            <th scope="col" class="number">{column.label}</th>
+            <th scope="col" class="number">{column.vsLabel}</th>
+          {/each}
+        </tr>
+      </thead>
+      <tbody>
+        {#each tableData.rows as row (row.categoryId)}
+          {@render comparisonRow(row, drillHref(period, row.categoryId ?? 'uncategorized'))}
+        {/each}
+      </tbody>
+      <tfoot>
+        {@render comparisonRow(tableData.total, drillHref(period))}
+      </tfoot>
+    </table>
+  </div>
 {/snippet}
 
 {#snippet comparisonRow(row: ComparisonRow, href: string)}
   <tr>
     <th scope="row"><a {href}>{row.name}</a></th>
     <td class="number">{formatMinor(row.current)}</td>
-    {#if row.baseline === 'insufficient'}
-      <td class="number">insufficient data</td>
-      <td class="number"></td>
-      <td class="number"></td>
-    {:else}
-      <td class="number">{formatMinor(row.baseline)}</td>
-      <td class="number">{row.delta === null ? '' : signed(row.delta)}</td>
-      <td class="number">{percent(row.deltaPct)}</td>
-    {/if}
+    {#each BASELINE_COLUMNS as column (column.baseline)}
+      {@const result = row[column.baseline]}
+      <td class="number">
+        {result.value === 'insufficient' ? 'insufficient data' : formatMinor(result.value)}
+      </td>
+      <td class="number">{vsText(result)}</td>
+    {/each}
   </tr>
 {/snippet}
 
@@ -308,6 +294,10 @@
     margin-top: var(--space-2);
   }
 
+  .table-scroll {
+    overflow-x: auto;
+  }
+
   table {
     border-collapse: collapse;
     width: 100%;
@@ -333,6 +323,7 @@
   .number {
     text-align: right;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   tfoot th,

@@ -438,28 +438,20 @@ export const MUTATIONS = [
   ['M140 baseline threshold is 3 periods', COMPARE,
     'const MIN_POOL = 3;', 'const MIN_POOL = 2;'],
   ['M141 mean zero-fills empty periods', COMPARE,
-    `  if (baseline === 'mean') {
-    return roundedDivide(
-      values.reduce((sum, value) => sum + value, 0),
-      values.length,
-    );
-  }`,
-    `  if (baseline === 'mean') {
-    return roundedDivide(
-      values.reduce((sum, value) => sum + value, 0),
-      values.filter((value) => value !== 0).length,
-    );
-  }`],
+    `  return roundedDivide(
+    values.reduce((sum, value) => sum + value, 0),
+    values.length,
+  );`,
+    `  return roundedDivide(
+    values.reduce((sum, value) => sum + value, 0),
+    values.filter((value) => value !== 0).length,
+  );`],
   ['M142 mean rounds half-up', COMPARE,
-    `  if (baseline === 'mean') {
-    return roundedDivide(
-      values.reduce((sum, value) => sum + value, 0),
-      values.length,
-    );
-  }`,
-    `  if (baseline === 'mean') {
-    return Math.trunc(values.reduce((sum, value) => sum + value, 0) / values.length);
-  }`],
+    `  return roundedDivide(
+    values.reduce((sum, value) => sum + value, 0),
+    values.length,
+  );`,
+    `  return Math.trunc(values.reduce((sum, value) => sum + value, 0) / values.length);`],
   ['M143 median averages the two middle values', COMPARE,
     'return roundedDivide((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0), 2);',
     'return sorted[middle] ?? 0;'],
@@ -467,18 +459,12 @@ export const MUTATIONS = [
     'const previous = inSpan.has(previousCandidate) ? previousCandidate : null;',
     'const previous = (inSpan.has(previousCandidate) || true) ? previousCandidate : null;'],
   ['M145 total baseline from per-period totals', COMPARE,
-    `  const total = comparisonRow(
-    null,
-    TOTAL_NAMES[tab],
-    buckets.total.get(period) ?? 0,
-    baselineOf(buckets.total),
-  );`,
-    `  const total = comparisonRow(
-    null,
-    TOTAL_NAMES[tab],
-    buckets.total.get(period) ?? 0,
-    rows.reduce((sum, row) => sum + (row.baseline === 'insufficient' ? 0 : row.baseline), 0),
-  );`],
+    'const total = comparisonRow(null, TOTAL_NAMES[tab], buckets.total, scope);',
+    `const perPeriod = comparisonRow(null, TOTAL_NAMES[tab], buckets.total, scope);
+  const summed = (key: Baseline) => baselineResult(perPeriod.current, scope.sufficient
+    ? rows.reduce((sum, row) => sum + (({ value }) => (value === 'insufficient' ? 0 : value))(row[key]), 0)
+    : 'insufficient');
+  const total = { ...perPeriod, mean: summed('mean'), median: summed('median'), previous: summed('previous') };`],
   ['M146 transfer-type rows excluded from spending', COMPARE,
     `if (category.type === 'expense') return 'spending';`,
     `if (category.type === 'expense' || category.type === 'transfer') return 'spending';`],
@@ -498,11 +484,9 @@ export const MUTATIONS = [
     'const rowPeriod = periodOf(row.effectiveDate, type);',
     'const rowPeriod = periodOf(row.postingDate, type);'],
   ['M152 row visibility uses current or baseline', COMPARE,
-    `    const row = comparisonRow(categoryId, name, sums.get(period) ?? 0, baselineOf(sums));
-    const shownBaseline = row.baseline === 'insufficient' ? 0 : row.baseline;
-    if (row.current !== 0 || shownBaseline !== 0) rows.push(row);`,
-    `    const row = comparisonRow(categoryId, name, sums.get(period) ?? 0, baselineOf(sums));
-    if (row.current !== 0) rows.push(row);`],
+    `  const baselines = [row.mean, row.median, row.previous];
+  return row.current !== 0 || baselines.some((result) => result.value !== 'insufficient' && result.value !== 0);`,
+    '  return row.current !== 0;'],
   ['M153 rows sort by current descending', COMPARE,
     'rows.sort((a, b) => b.current - a.current || a.name.localeCompare(b.name));',
     'rows.sort((a, b) => a.current - b.current || a.name.localeCompare(b.name));'],
@@ -534,11 +518,11 @@ export const MUTATIONS = [
   ['M157 default period is the last complete one', PERIOD,
     'const defaultPeriod = span[1] ?? current;', 'const defaultPeriod = span[0] ?? current;'],
   ['M159 deltaPct null only at zero baseline', COMPARE,
-    'const deltaPct = baseline === 0 ? null : roundedDivide(delta * 100, baseline);',
-    'const deltaPct = baseline !== 0 ? null : roundedDivide(delta * 100, baseline);'],
+    'const deltaPct = value === 0 ? null : roundedDivide(delta * 100, value);',
+    'const deltaPct = value !== 0 ? null : roundedDivide(delta * 100, value);'],
   ['M160 percent rounds half-up', COMPARE,
-    'const deltaPct = baseline === 0 ? null : roundedDivide(delta * 100, baseline);',
-    'const deltaPct = baseline === 0 ? null : Math.trunc((delta * 100) / baseline);'],
+    'const deltaPct = value === 0 ? null : roundedDivide(delta * 100, value);',
+    'const deltaPct = value === 0 ? null : Math.trunc((delta * 100) / value);'],
   ['M161 unknown category filter value falls back', TXVIEW,
     `  const categoryFilter = $derived.by(() => {
     if (query.category === UNCATEGORIZED || $categories === undefined) return query.category;
@@ -570,7 +554,7 @@ export const MUTATIONS = [
     `row.categoryId ?? undefined`],
   ['M167 dashboard state read from the query on mount', DASHVIEW,
     'let query = $state(dashboardQuery());',
-    "let query = $state({ type: '', period: '', baseline: '', tab: '' });"],
+    "let query = $state({ type: '', period: '', tab: '' });"],
   ['M168 arrow keys switch the active tab', DASHVIEW,
     `    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;`,
     `    if (event.key !== 'ArrowRight' || String(event.key) !== 'ArrowLeft') return;`],

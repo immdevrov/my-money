@@ -4,13 +4,19 @@ import { dashboardPeriods, periodOf, previousPeriod, type PeriodType } from './p
 
 export type Baseline = 'mean' | 'median' | 'previous';
 
+export type BaselineResult = {
+  value: number | 'insufficient';
+  delta: number | null;
+  deltaPct: number | null;
+};
+
 export type ComparisonRow = {
   categoryId: string | null;
   name: string;
   current: number;
-  baseline: number | 'insufficient';
-  delta: number | null;
-  deltaPct: number | null;
+  mean: BaselineResult;
+  median: BaselineResult;
+  previous: BaselineResult;
 };
 
 export type ComparisonTable = {
@@ -33,7 +39,15 @@ type TabBuckets = {
   total: PeriodSums;
 };
 
+type Scope = {
+  period: string;
+  pool: string[];
+  previous: string | null;
+  sufficient: boolean;
+};
+
 const MIN_POOL = 3;
+const MIN_MEDIAN_PERIODS = 3;
 const UNCATEGORIZED = 'Uncategorized';
 const TOTAL_NAMES: Record<Tab, string> = { spending: 'Total spending', income: 'Total income' };
 
@@ -65,62 +79,82 @@ function emptyBuckets(): TabBuckets {
   return { byCategory: new Map(), total: new Map() };
 }
 
-function baselineValue(sums: PeriodSums, baseline: Baseline, periods: string[]): number {
-  const values = periods.map((period) => sums.get(period) ?? 0);
+function valuesIn(sums: PeriodSums, periods: string[]): number[] {
+  return periods.map((period) => sums.get(period) ?? 0);
+}
 
-  if (baseline === 'previous') return values[0] ?? 0;
+function meanOf(sums: PeriodSums, pool: string[]): number {
+  const values = valuesIn(sums, pool);
+  return roundedDivide(
+    values.reduce((sum, value) => sum + value, 0),
+    values.length,
+  );
+}
 
-  if (baseline === 'mean') {
-    return roundedDivide(
-      values.reduce((sum, value) => sum + value, 0),
-      values.length,
-    );
-  }
+function medianOf(sums: PeriodSums, pool: string[]): number | 'insufficient' {
+  const values = valuesIn(sums, pool).filter((value) => value !== 0);
+  if (values.length < MIN_MEDIAN_PERIODS) return 'insufficient';
 
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = values.sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
   if (sorted.length % 2 === 1) return sorted[middle] ?? 0;
   return roundedDivide((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0), 2);
 }
 
+function previousOf(sums: PeriodSums, previous: string | null): number | 'insufficient' {
+  return previous === null ? 'insufficient' : (sums.get(previous) ?? 0);
+}
+
+function baselineResult(current: number, value: number | 'insufficient'): BaselineResult {
+  if (value === 'insufficient') return { value, delta: null, deltaPct: null };
+  const delta = current - value;
+  const deltaPct = value === 0 ? null : roundedDivide(delta * 100, value);
+  return { value, delta, deltaPct };
+}
+
 function comparisonRow(
   categoryId: string | null,
   name: string,
-  current: number,
-  baseline: number | 'insufficient',
+  sums: PeriodSums,
+  scope: Scope,
 ): ComparisonRow {
-  if (baseline === 'insufficient') {
-    return { categoryId, name, current, baseline, delta: null, deltaPct: null };
+  const current = sums.get(scope.period) ?? 0;
+  if (!scope.sufficient) {
+    const insufficient = baselineResult(current, 'insufficient');
+    return { categoryId, name, current, mean: insufficient, median: insufficient, previous: insufficient };
   }
-  const delta = current - baseline;
-  const deltaPct = baseline === 0 ? null : roundedDivide(delta * 100, baseline);
-  return { categoryId, name, current, baseline, delta, deltaPct };
+  return {
+    categoryId,
+    name,
+    current,
+    mean: baselineResult(current, meanOf(sums, scope.pool)),
+    median: baselineResult(current, medianOf(sums, scope.pool)),
+    previous: baselineResult(current, previousOf(sums, scope.previous)),
+  };
+}
+
+function isShown(row: ComparisonRow): boolean {
+  const baselines = [row.mean, row.median, row.previous];
+  return row.current !== 0 || baselines.some((result) => result.value !== 'insufficient' && result.value !== 0);
 }
 
 function buildTable(
   tab: Tab,
   buckets: TabBuckets,
   categories: Map<string, Category>,
-  period: string,
-  baselineOf: (sums: PeriodSums) => number | 'insufficient',
+  scope: Scope,
 ): ComparisonTable {
   const rows: ComparisonRow[] = [];
 
   for (const [categoryId, sums] of buckets.byCategory) {
     const name = categoryId === null ? UNCATEGORIZED : (categories.get(categoryId)?.name ?? '');
-    const row = comparisonRow(categoryId, name, sums.get(period) ?? 0, baselineOf(sums));
-    const shownBaseline = row.baseline === 'insufficient' ? 0 : row.baseline;
-    if (row.current !== 0 || shownBaseline !== 0) rows.push(row);
+    const row = comparisonRow(categoryId, name, sums, scope);
+    if (isShown(row)) rows.push(row);
   }
 
   rows.sort((a, b) => b.current - a.current || a.name.localeCompare(b.name));
 
-  const total = comparisonRow(
-    null,
-    TOTAL_NAMES[tab],
-    buckets.total.get(period) ?? 0,
-    baselineOf(buckets.total),
-  );
+  const total = comparisonRow(null, TOTAL_NAMES[tab], buckets.total, scope);
 
   return { rows, total };
 }
@@ -131,9 +165,8 @@ export function compare(input: {
   today: string;
   type: PeriodType;
   period: string;
-  baseline: Baseline;
 }): Comparison {
-  const { rows, today, type, period, baseline } = input;
+  const { rows, today, type, period } = input;
   const categories = new Map(input.categories.map((category) => [category.id, category]));
   const table = rateTableFrom(rows);
 
@@ -143,8 +176,9 @@ export function compare(input: {
 
   const previousCandidate = previousPeriod(period);
   const previous = inSpan.has(previousCandidate) ? previousCandidate : null;
-  const baselinePeriods = baseline === 'previous' ? (previous === null ? [] : [previous]) : pool;
-  const sufficient = pool.length >= MIN_POOL && baselinePeriods.length > 0;
+  const sufficient = pool.length >= MIN_POOL;
+  const scope: Scope = { period, pool, previous, sufficient };
+  const baselinePeriods = previous === null ? pool : [...pool, previous];
   const onScreen = new Set(sufficient ? [period, ...baselinePeriods] : [period]);
 
   const buckets: Record<Tab, TabBuckets> = { spending: emptyBuckets(), income: emptyBuckets() };
@@ -172,12 +206,9 @@ export function compare(input: {
     addTo(buckets[tab].total, rowPeriod, amount);
   }
 
-  const baselineOf = (sums: PeriodSums): number | 'insufficient' =>
-    sufficient ? baselineValue(sums, baseline, baselinePeriods) : 'insufficient';
-
   return {
-    spending: buildTable('spending', buckets.spending, categories, period, baselineOf),
-    income: buildTable('income', buckets.income, categories, period, baselineOf),
+    spending: buildTable('spending', buckets.spending, categories, scope),
+    income: buildTable('income', buckets.income, categories, scope),
     missingRate,
   };
 }

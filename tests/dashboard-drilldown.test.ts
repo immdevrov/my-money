@@ -39,10 +39,22 @@ async function expectTransactionsFilters(screen: Screen, period: string, categor
     .toHaveDisplayValue(category);
 }
 
+async function expectDashboard(screen: Screen, type: string, period: string, tab: string) {
+  await expect.element(screen.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect
+    .element(screen.getByRole('combobox', { name: /^Period type$/ }))
+    .toHaveDisplayValue(type);
+  await expect
+    .element(screen.getByRole('combobox', { name: /^Period$/ }))
+    .toHaveDisplayValue(period);
+  await expect
+    .element(screen.getByRole('tab', { name: tab }))
+    .toHaveAttribute('aria-selected', 'true');
+}
+
 test('a category row opens Transactions filtered to it, and Back restores the Dashboard', SLOW, async () => {
   const screen = await openDashboard();
   await choose(screen, /^Period$/, '2025-03');
-  await choose(screen, /^Baseline$/, 'Median');
 
   await screen.getByRole('link', { name: /^Groceries$/ }).click();
 
@@ -52,13 +64,7 @@ test('a category row opens Transactions filtered to it, and Back restores the Da
 
   history.back();
 
-  await expect.element(screen.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-  await expect
-    .element(screen.getByRole('combobox', { name: /^Period$/ }))
-    .toHaveDisplayValue('2025-03');
-  await expect
-    .element(screen.getByRole('combobox', { name: /^Baseline$/ }))
-    .toHaveDisplayValue('Median');
+  await expectDashboard(screen, 'Month', '2025-03', 'Spending');
 });
 
 test('a quarter drill-down restores the period type on Back', SLOW, async () => {
@@ -76,13 +82,7 @@ test('a quarter drill-down restores the period type on Back', SLOW, async () => 
 
   history.back();
 
-  await expect.element(screen.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-  await expect
-    .element(screen.getByRole('combobox', { name: /^Period type$/ }))
-    .toHaveDisplayValue('Quarter');
-  await expect
-    .element(screen.getByRole('combobox', { name: /^Period$/ }))
-    .toHaveDisplayValue('2025 Q1');
+  await expectDashboard(screen, 'Quarter', '2025 Q1', 'Spending');
 });
 
 test('uncategorized drills to both signs, and Back restores the Income tab', SLOW, async () => {
@@ -99,9 +99,7 @@ test('uncategorized drills to both signs, and Back restores the Income tab', SLO
 
   history.back();
 
-  await expect
-    .element(screen.getByRole('tab', { name: 'Income' }))
-    .toHaveAttribute('aria-selected', 'true');
+  await expectDashboard(screen, 'Month', '2025-05', 'Income');
   await expect.element(screen.getByRole('table', { name: 'Income comparison' })).toBeVisible();
 });
 

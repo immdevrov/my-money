@@ -2,6 +2,7 @@
   import { closeDatabase, openDatabase } from './db/database';
   import { requestPersistentStorage } from './db/persist';
   import CategoriesView from './ui/views/CategoriesView.svelte';
+  import DashboardView from './ui/views/DashboardView.svelte';
   import ImportView from './ui/views/ImportView.svelte';
   import RulesView from './ui/views/RulesView.svelte';
   import StubView from './ui/views/StubView.svelte';
@@ -64,6 +65,8 @@
     <CategoriesView />
   {:else if active.path === 'rules'}
     <RulesView />
+  {:else if active.path === 'dashboard'}
+    <DashboardView />
   {:else}
     <StubView title={active.label} phase={active.phase} />
   {/if}

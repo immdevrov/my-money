@@ -1,4 +1,5 @@
 import type { CategorySource, DerivedFields, Rule, StoredTransaction } from '../domain/types';
+import { byPriorityThenId } from './order';
 import { CURRENCY_CONVERSION_ID } from './seed';
 
 export type Candidate = Pick<StoredTransaction, 'details' | 'manualCategoryId'> &
@@ -44,11 +45,6 @@ export function matchesRule(rule: Rule, row: Candidate): boolean {
       return regex.test(value);
     }
   }
-}
-
-function byPriorityThenId(a: Rule, b: Rule): number {
-  if (a.priority !== b.priority) return a.priority - b.priority;
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }
 
 export function assignCategory(row: Candidate, rules: Rule[]): Assignment {

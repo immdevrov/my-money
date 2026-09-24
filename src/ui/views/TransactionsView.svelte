@@ -1,13 +1,16 @@
 <script lang="ts">
   import { liveQuery } from 'dexie';
-  import { DETAILS_KINDS, type Category, type Transaction } from '../../domain/types';
+  import { DETAILS_KINDS, type Category, type RuleField, type Transaction } from '../../domain/types';
+  import { wouldCategorize } from '../../categorize/counts';
   import { listCategories, saveCategory } from '../../db/categories';
+  import { addRuleFromTransaction, listRules, type RuleDraft } from '../../db/rules';
   import { clearManualCategory, listAll, setManualCategory } from '../../db/transactions';
   import { toGelMinor } from '../../aggregate/convert';
   import { inPeriod, periodOptions } from '../../aggregate/period';
   import { formatMinor } from '../../import/amount';
   import { buildRateTable, rateFor } from '../../pairing/rates';
   import CategoryForm from '../components/CategoryForm.svelte';
+  import RuleForm from '../components/RuleForm.svelte';
 
   const BASE_CURRENCY = 'GEL';
   const MISSING_RATE = 'no rate';
@@ -26,6 +29,7 @@
 
   const transactions = liveQuery(async () => listAll());
   const categories = liveQuery(async () => listCategories());
+  const rules = liveQuery(async () => listRules());
 
   let sortKey = $state<SortKey>('effectiveDate');
   let ascending = $state(false);
@@ -35,6 +39,10 @@
   let categoryFilter = $state('');
   let kindFilter = $state('');
   let searchFilter = $state('');
+  let promptRowId = $state<string | null>(null);
+  let promptCategoryId = $state<string | null>(null);
+  let editingRuleRow = $state<Transaction | null>(null);
+  let editRuleDraft = $state<RuleDraft | null>(null);
 
   const sorted = $derived.by(() => {
     const rows = [...($transactions ?? [])];
@@ -121,6 +129,37 @@
     return ($categories ?? []).find((category) => category.id === categoryId)?.name ?? '';
   }
 
+  const promptCount = $derived.by(() => {
+    const row = sorted.find((candidate) => candidate.id === promptRowId);
+    if (!row || promptCategoryId === null) return 0;
+    return wouldCategorize(
+      sorted,
+      $rules ?? [],
+      { field: 'counterparty', match: 'equals', pattern: row.counterparty, categoryId: promptCategoryId },
+      row.id,
+    );
+  });
+
+  function promptText(row: Transaction, categoryId: string, count: number): string {
+    return `Apply ${categoryName(categoryId)} to all ${row.counterparty} transactions? It would categorize ${count} now, and future imports too.`;
+  }
+
+  const editRuleCount = $derived.by(() => {
+    if (!editingRuleRow || !editRuleDraft) return 0;
+    return wouldCategorize(sorted, $rules ?? [], editRuleDraft, editingRuleRow.id);
+  });
+
+  function basedOnOptions(row: Transaction): { field: RuleField; value: string; label: string }[] {
+    const options: { field: RuleField; value: string; label: string }[] = [
+      { field: 'counterparty', value: row.counterparty, label: `Counterparty = ${row.counterparty}` },
+    ];
+    if (row.mcc !== null) {
+      options.push({ field: 'mcc', value: row.mcc, label: `MCC = ${row.mcc}` });
+    }
+    options.push({ field: 'kind', value: row.kind, label: `Kind = ${row.kind}` });
+    return options;
+  }
+
   function selectValue(row: Transaction): string {
     return pendingSelections[row.id] ?? row.categoryId ?? UNCATEGORIZED;
   }
@@ -139,6 +178,7 @@
       return;
     }
     void setManualCategory(row.id, value);
+    showPrompt(row, value);
   }
 
   function cancelNewCategory() {
@@ -149,10 +189,56 @@
   async function saveNewCategory(category: Category) {
     await saveCategory(category);
     if (newCategoryRow) {
-      await setManualCategory(newCategoryRow.id, category.id);
-      clearPending(newCategoryRow.id);
+      const row = newCategoryRow;
+      await setManualCategory(row.id, category.id);
+      clearPending(row.id);
+      showPrompt(row, category.id);
     }
     newCategoryRow = null;
+  }
+
+  function showPrompt(row: Transaction, categoryId: string) {
+    promptRowId = row.id;
+    promptCategoryId = categoryId;
+    editingRuleRow = null;
+    editRuleDraft = null;
+  }
+
+  function closePrompt() {
+    promptRowId = null;
+    promptCategoryId = null;
+    editingRuleRow = null;
+    editRuleDraft = null;
+  }
+
+  function resetCategory(row: Transaction) {
+    void clearManualCategory(row.id);
+    if (promptRowId === row.id) closePrompt();
+  }
+
+  async function createRuleFromPrompt(row: Transaction) {
+    if (promptCategoryId === null) return;
+    await addRuleFromTransaction(
+      { field: 'counterparty', match: 'equals', pattern: row.counterparty, categoryId: promptCategoryId },
+      row.id,
+    );
+    closePrompt();
+  }
+
+  function openEditRule(row: Transaction) {
+    editingRuleRow = row;
+    editRuleDraft = {
+      field: 'counterparty',
+      match: 'equals',
+      pattern: row.counterparty,
+      categoryId: promptCategoryId ?? '',
+    };
+  }
+
+  async function saveRuleFromEdit(draft: RuleDraft) {
+    if (!editingRuleRow) return;
+    await addRuleFromTransaction(draft, editingRuleRow.id);
+    closePrompt();
   }
 </script>
 
@@ -256,13 +342,27 @@
                   <span>{row.categorySource}</span>
                 {/if}
                 {#if row.categorySource === 'manual'}
-                  <button type="button" onclick={() => void clearManualCategory(row.id)}>
+                  <button type="button" onclick={() => resetCategory(row)}>
                     Reset category for {row.counterparty}
                   </button>
                 {/if}
               {/if}
             </td>
           </tr>
+          {#if promptRowId === row.id && promptCategoryId !== null}
+            <tr>
+              <td colspan={COLUMNS.length + 3}>
+                <p>{promptText(row, promptCategoryId, promptCount)}</p>
+                <p class="actions">
+                  <button type="button" onclick={() => void createRuleFromPrompt(row)}>
+                    Create rule
+                  </button>
+                  <button type="button" onclick={() => openEditRule(row)}>Edit rule…</button>
+                  <button type="button" onclick={closePrompt}>No</button>
+                </p>
+              </td>
+            </tr>
+          {/if}
         {/each}
       </tbody>
     </table>
@@ -272,6 +372,20 @@
 {#if newCategoryRow}
   <dialog open>
     <CategoryForm categories={$categories ?? []} onsave={saveNewCategory} oncancel={cancelNewCategory} />
+  </dialog>
+{/if}
+
+{#if editingRuleRow}
+  <dialog open>
+    <RuleForm
+      categories={$categories ?? []}
+      basedOn={basedOnOptions(editingRuleRow)}
+      initialCategoryId={promptCategoryId ?? undefined}
+      count={editRuleCount}
+      onsave={saveRuleFromEdit}
+      oncancel={closePrompt}
+      ondraftchange={(draft) => (editRuleDraft = draft)}
+    />
   </dialog>
 {/if}
 
@@ -298,6 +412,11 @@
     border-bottom: 1px solid var(--border);
     padding: var(--space-1) var(--space-2);
     text-align: left;
+  }
+
+  .actions {
+    display: flex;
+    gap: var(--space-2);
   }
 
   th button {

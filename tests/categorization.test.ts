@@ -52,6 +52,27 @@ const UNPAIRED_CONVERSION: StatementCell[] = [
   -30,
 ];
 
+const SHOP_ALPHA_2: StatementCell[] = [
+  '15/03/2025',
+  'Payment - Amount: GEL11.00; Merchant: Shop Alpha, Tbilisi; MCC:1001; Date: 15/03/2025 10:00; Card No: ****1111',
+  -11,
+  null,
+];
+
+const SHOP_ALPHA_3: StatementCell[] = [
+  '16/03/2025',
+  'Payment - Amount: GEL12.00; Merchant: Shop Alpha, Tbilisi; MCC:1001; Date: 16/03/2025 10:00; Card No: ****1111',
+  -12,
+  null,
+];
+
+const SHOP_GAMMA: StatementCell[] = [
+  '18/03/2025',
+  'Payment - Amount: GEL14.00; Merchant: Shop Gamma, Tbilisi; MCC:1002; Date: 18/03/2025 10:00; Card No: ****3333',
+  -14,
+  null,
+];
+
 type Screen = Awaited<ReturnType<typeof render>>;
 
 async function addCategory(screen: Screen, name: string, type: 'expense' | 'transfer' = 'expense') {
@@ -276,4 +297,190 @@ test('resetting a manual category falls back to the rule that covers the row', a
     .element(screen.getByRole('option', { name: /^Groceries$/, selected: true }))
     .toBeInTheDocument();
   await expect.element(screen.getByText(/^rule$/)).toBeVisible();
+});
+
+test('"Create rule" applies the category to every matching row and clears the originating manual assignment', async () => {
+  await importRows([SHOP_ALPHA, SHOP_ALPHA_2, SHOP_ALPHA_3, SHOP_BETA_MCC1001, SHOP_GAMMA], OPTIONS);
+
+  let screen = await render(CategoriesView);
+  await addCategory(screen, 'Groceries');
+  cleanup();
+
+  screen = await render(TransactionsView);
+  const alphaRow1 = screen.getByRole('row', { name: /-10\.00 GEL/ });
+  const select = alphaRow1.getByRole('combobox');
+  await select.selectOptions(select.getByRole('option', { name: /^Groceries$/ }));
+
+  await expect
+    .element(
+      screen.getByText(
+        'Apply Groceries to all Shop Alpha transactions? It would categorize 3 now, and future imports too.',
+      ),
+    )
+    .toBeVisible();
+
+  await screen.getByRole('button', { name: 'Create rule' }).click();
+
+  await expect.element(screen.getByText(/^rule$/)).toHaveLength(3);
+  await expect.element(screen.getByText(/^manual$/)).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole('combobox', { name: 'Category for Shop Beta' }))
+    .toHaveValue('uncategorized');
+  await expect
+    .element(screen.getByRole('combobox', { name: 'Category for Shop Gamma' }))
+    .toHaveValue('uncategorized');
+  cleanup();
+
+  screen = await render(RulesView);
+  const ruleRow = screen.getByRole('row', { name: /Shop Alpha/ });
+  await expect.element(ruleRow).toHaveTextContent('counterparty');
+  await expect.element(ruleRow.getByRole('cell', { name: /^3$/ })).toBeVisible();
+});
+
+test('"No" leaves only the picked row categorized and the rest of Shop Alpha uncategorized', async () => {
+  await importRows([SHOP_ALPHA, SHOP_ALPHA_2, SHOP_ALPHA_3], OPTIONS);
+
+  let screen = await render(CategoriesView);
+  await addCategory(screen, 'Groceries');
+  cleanup();
+
+  screen = await render(TransactionsView);
+  const alphaRow1 = screen.getByRole('row', { name: /-10\.00 GEL/ });
+  const select = alphaRow1.getByRole('combobox');
+  await select.selectOptions(select.getByRole('option', { name: /^Groceries$/ }));
+
+  await screen.getByRole('button', { name: 'No' }).click();
+
+  await expect.element(screen.getByText(/^manual$/)).toHaveLength(1);
+  await expect.element(alphaRow1.getByText(/^manual$/)).toBeVisible();
+  await expect.element(screen.getByText(/^rule$/)).not.toBeInTheDocument();
+
+  const alphaRow2 = screen.getByRole('row', { name: /-11\.00 GEL/ });
+  await expect.element(alphaRow2.getByRole('combobox')).toHaveValue('uncategorized');
+  const alphaRow3 = screen.getByRole('row', { name: /-12\.00 GEL/ });
+  await expect.element(alphaRow3.getByRole('combobox')).toHaveValue('uncategorized');
+
+  await expect
+    .element(
+      screen.getByText(
+        'Apply Groceries to all Shop Alpha transactions? It would categorize 3 now, and future imports too.',
+      ),
+    )
+    .not.toBeInTheDocument();
+});
+
+test('"Edit rule…" based on MCC categorizes every row with that MCC', async () => {
+  await importRows([SHOP_ALPHA, SHOP_ALPHA_2, SHOP_ALPHA_3, SHOP_BETA_MCC1001, SHOP_GAMMA], OPTIONS);
+
+  let screen = await render(CategoriesView);
+  await addCategory(screen, 'Groceries');
+  cleanup();
+
+  screen = await render(TransactionsView);
+  const alphaRow1 = screen.getByRole('row', { name: /-10\.00 GEL/ });
+  const select = alphaRow1.getByRole('combobox');
+  await select.selectOptions(select.getByRole('option', { name: /^Groceries$/ }));
+
+  await screen.getByRole('button', { name: 'Edit rule…' }).click();
+  await expect.element(screen.getByText('Would categorize 3 transactions')).toBeVisible();
+
+  await screen.getByRole('radio', { name: 'MCC = 1001' }).click();
+  await expect.element(screen.getByText('Would categorize 4 transactions')).toBeVisible();
+
+  await screen.getByRole('button', { name: 'Save rule' }).click();
+
+  await expect.element(screen.getByText(/^rule$/)).toHaveLength(4);
+  await expect.element(screen.getByText(/^manual$/)).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByRole('combobox', { name: 'Category for Shop Gamma' }))
+    .toHaveValue('uncategorized');
+});
+
+test('"Cancel" in the edit-rule dialog leaves the manual assignment and closes the prompt', async () => {
+  await importRows([SHOP_ALPHA], OPTIONS);
+
+  let screen = await render(CategoriesView);
+  await addCategory(screen, 'Groceries');
+  cleanup();
+
+  screen = await render(TransactionsView);
+  const select = screen.getByRole('combobox', { name: 'Category for Shop Alpha' });
+  await select.selectOptions(select.getByRole('option', { name: /^Groceries$/ }));
+
+  await screen.getByRole('button', { name: 'Edit rule…' }).click();
+  await screen.getByRole('button', { name: 'Cancel' }).click();
+
+  await expect
+    .element(screen.getByRole('option', { name: /^Groceries$/, selected: true }))
+    .toBeInTheDocument();
+  await expect.element(screen.getByText(/^manual$/)).toBeVisible();
+  await expect
+    .element(
+      screen.getByText(
+        'Apply Groceries to all Shop Alpha transactions? It would categorize 1 now, and future imports too.',
+      ),
+    )
+    .not.toBeInTheDocument();
+});
+
+test('"New category…" shows the "apply to all" prompt for the created category', async () => {
+  await importRows([SHOP_GAMMA], OPTIONS);
+  const screen = await render(TransactionsView);
+
+  const select = screen.getByRole('combobox', { name: 'Category for Shop Gamma' });
+  await select.selectOptions(select.getByRole('option', { name: 'New category…' }));
+  await screen.getByLabelText('Name').fill('Fun');
+  await screen.getByRole('button', { name: 'Save category' }).click();
+
+  await expect
+    .element(
+      screen.getByText(
+        'Apply Fun to all Shop Gamma transactions? It would categorize 1 now, and future imports too.',
+      ),
+    )
+    .toBeVisible();
+});
+
+test('picking another row replaces the prompt, and a paired conversion never shows one', async () => {
+  await importRows([CONVERSION_GEL, CONVERSION_USD, SHOP_ALPHA, SHOP_BETA_MCC1001], OPTIONS);
+
+  let screen = await render(CategoriesView);
+  await addCategory(screen, 'Groceries');
+  cleanup();
+
+  screen = await render(TransactionsView);
+
+  const alphaSelect = screen.getByRole('combobox', { name: 'Category for Shop Alpha' });
+  await alphaSelect.selectOptions(alphaSelect.getByRole('option', { name: /^Groceries$/ }));
+  await expect
+    .element(
+      screen.getByText(
+        'Apply Groceries to all Shop Alpha transactions? It would categorize 1 now, and future imports too.',
+      ),
+    )
+    .toBeVisible();
+
+  const betaSelect = screen.getByRole('combobox', { name: 'Category for Shop Beta' });
+  await betaSelect.selectOptions(betaSelect.getByRole('option', { name: /^Groceries$/ }));
+
+  await expect
+    .element(
+      screen.getByText(
+        'Apply Groceries to all Shop Alpha transactions? It would categorize 1 now, and future imports too.',
+      ),
+    )
+    .not.toBeInTheDocument();
+  await expect
+    .element(
+      screen.getByText(
+        'Apply Groceries to all Shop Beta transactions? It would categorize 1 now, and future imports too.',
+      ),
+    )
+    .toBeVisible();
+
+  const gelRow = screen.getByRole('row', { name: /273\.50 GEL/ });
+  const usdRow = screen.getByRole('row', { name: /-100\.00 USD/ });
+  await expect.element(gelRow.getByRole('combobox')).not.toBeInTheDocument();
+  await expect.element(usdRow.getByRole('combobox')).not.toBeInTheDocument();
+  await expect.element(screen.getByRole('button', { name: 'No' })).toHaveLength(1);
 });

@@ -25,6 +25,7 @@ async function assignGroceries(screen: Awaited<ReturnType<typeof render>>, count
   await select.selectOptions(select.getByRole('option', { name: /^New category…$/ }));
   await screen.getByLabelText('Name').fill('Groceries');
   await screen.getByRole('button', { name: 'Save category' }).click();
+  await screen.getByRole('button', { name: 'No' }).click();
 }
 
 test('period filter narrows to a year', async () => {

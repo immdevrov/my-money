@@ -10,12 +10,22 @@ export async function listRules(): Promise<Rule[]> {
   return rules.sort(byPriorityThenId);
 }
 
+async function insertNewRule(draft: RuleDraft): Promise<void> {
+  const existing = await db.rules.toArray();
+  const rule: Rule = { id: crypto.randomUUID(), priority: 0, ...draft };
+  await db.rules.bulkPut(insertRule(existing, rule));
+}
+
 export async function addRule(draft: RuleDraft): Promise<void> {
   await openDatabase();
-  await db.transaction('rw', db.rules, async () => {
-    const existing = await db.rules.toArray();
-    const rule: Rule = { id: crypto.randomUUID(), priority: 0, ...draft };
-    await db.rules.bulkPut(insertRule(existing, rule));
+  await db.transaction('rw', db.rules, () => insertNewRule(draft));
+}
+
+export async function addRuleFromTransaction(draft: RuleDraft, transactionId: string): Promise<void> {
+  await openDatabase();
+  await db.transaction('rw', db.rules, db.transactions, async () => {
+    await insertNewRule(draft);
+    await db.transactions.update(transactionId, { manualCategoryId: null });
   });
 }
 

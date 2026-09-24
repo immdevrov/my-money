@@ -6,7 +6,14 @@
   import { addRuleFromTransaction, listRules, type RuleDraft } from '../../db/rules';
   import { clearManualCategory, listAll, setManualCategory } from '../../db/transactions';
   import { gelAmount, rateTableFrom } from '../../aggregate/gel';
-  import { inPeriod, periodOptions } from '../../aggregate/period';
+  import {
+    inPeriod,
+    isPeriod,
+    periodLabel,
+    periodOptions,
+    type PeriodOption,
+  } from '../../aggregate/period';
+  import { onHashChange, readQuery, replaceQuery } from '../hashQuery';
   import { formatMinor } from '../../import/amount';
   import CategoryForm from '../components/CategoryForm.svelte';
   import RuleForm from '../components/RuleForm.svelte';
@@ -33,10 +40,47 @@
   let ascending = $state(false);
   let pendingSelections = $state<Record<string, string>>({});
   let newCategoryRow = $state<Transaction | null>(null);
-  let periodFilter = $state('');
-  let categoryFilter = $state('');
-  let kindFilter = $state('');
-  let searchFilter = $state('');
+
+  type FilterKey = 'period' | 'category' | 'kind' | 'q';
+
+  function queryFilters(): Record<FilterKey, string> {
+    const params = readQuery();
+    return {
+      period: params.get('period') ?? '',
+      category: params.get('category') ?? '',
+      kind: params.get('kind') ?? '',
+      q: params.get('q') ?? '',
+    };
+  }
+
+  let query = $state(queryFilters());
+
+  $effect(() =>
+    onHashChange(() => {
+      query = queryFilters();
+    }),
+  );
+
+  const periodFilter = $derived(isPeriod(query.period) ? query.period : '');
+  const kindFilter = $derived(
+    (DETAILS_KINDS as readonly string[]).includes(query.kind) ? query.kind : '',
+  );
+  const categoryFilter = $derived.by(() => {
+    if (query.category === UNCATEGORIZED || $categories === undefined) return query.category;
+    return $categories.some((category) => category.id === query.category) ? query.category : '';
+  });
+  const searchFilter = $derived(query.q);
+
+  function setFilter(key: FilterKey, value: string) {
+    query = { ...query, [key]: value };
+    replaceQuery({
+      period: periodFilter,
+      category: categoryFilter,
+      kind: kindFilter,
+      q: searchFilter,
+    });
+  }
+
   let promptRowId = $state<string | null>(null);
   let promptCategoryId = $state<string | null>(null);
   let editingRuleRow = $state<Transaction | null>(null);
@@ -56,7 +100,24 @@
     return rows;
   });
 
-  const periods = $derived(periodOptions(sorted.map((row) => row.effectiveDate)));
+  function withActivePeriod(options: PeriodOption[], active: string): PeriodOption[] {
+    if (options.some((option) => option.value === active)) return options;
+    return [...options, { value: active, label: periodLabel(active) }].sort((a, b) =>
+      a.value < b.value ? 1 : -1,
+    );
+  }
+
+  const periods = $derived.by(() => {
+    const options = periodOptions(sorted.map((row) => row.effectiveDate));
+    if (periodFilter === '') return options;
+    if (periodFilter.length === 4) {
+      return { ...options, years: withActivePeriod(options.years, periodFilter) };
+    }
+    if (periodFilter.includes('-Q')) {
+      return { ...options, quarters: withActivePeriod(options.quarters, periodFilter) };
+    }
+    return { ...options, months: withActivePeriod(options.months, periodFilter) };
+  });
 
   const filtered = $derived.by(() => {
     const search = searchFilter.trim().toLowerCase();
@@ -259,7 +320,10 @@
   <div class="filters">
     <p class="field">
       <label for="filter-period">Period</label>
-      <select id="filter-period" bind:value={periodFilter}>
+      <select
+        id="filter-period"
+        bind:value={() => periodFilter, (value) => setFilter('period', value)}
+      >
         <option value="">All periods</option>
         <optgroup label="Years">
           {#each periods.years as option (option.value)}
@@ -280,7 +344,10 @@
     </p>
     <p class="field">
       <label for="filter-category">Category</label>
-      <select id="filter-category" bind:value={categoryFilter}>
+      <select
+        id="filter-category"
+        bind:value={() => categoryFilter, (value) => setFilter('category', value)}
+      >
         <option value="">All categories</option>
         <option value={UNCATEGORIZED}>Uncategorized</option>
         {#each $categories ?? [] as category (category.id)}
@@ -290,7 +357,10 @@
     </p>
     <p class="field">
       <label for="filter-kind">Kind</label>
-      <select id="filter-kind" bind:value={kindFilter}>
+      <select
+        id="filter-kind"
+        bind:value={() => kindFilter, (value) => setFilter('kind', value)}
+      >
         <option value="">All kinds</option>
         {#each DETAILS_KINDS as kind (kind)}
           <option value={kind}>{kind}</option>
@@ -299,7 +369,11 @@
     </p>
     <p class="field">
       <label for="filter-search">Search</label>
-      <input id="filter-search" type="search" bind:value={searchFilter} />
+      <input
+        id="filter-search"
+        type="search"
+        bind:value={() => searchFilter, (value) => setFilter('q', value)}
+      />
     </p>
   </div>
 

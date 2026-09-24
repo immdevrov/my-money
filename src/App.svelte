@@ -1,6 +1,7 @@
 <script lang="ts">
   import { closeDatabase, openDatabase } from './db/database';
   import { requestPersistentStorage } from './db/persist';
+  import { hashPath, onHashChange } from './ui/hashQuery';
   import CategoriesView from './ui/views/CategoriesView.svelte';
   import DashboardView from './ui/views/DashboardView.svelte';
   import ImportView from './ui/views/ImportView.svelte';
@@ -21,19 +22,17 @@
   ];
 
   function routeFromHash(): Route {
-    const path = location.hash.replace(/^#\/?/, '');
+    const path = hashPath();
     return routes.find((route) => route.path === path) ?? importRoute;
   }
 
   let active = $state(routeFromHash());
 
-  $effect(() => {
-    const sync = () => {
+  $effect(() =>
+    onHashChange(() => {
       active = routeFromHash();
-    };
-    window.addEventListener('hashchange', sync);
-    return () => window.removeEventListener('hashchange', sync);
-  });
+    }),
+  );
 
   $effect(() => {
     void openDatabase().then(requestPersistentStorage);

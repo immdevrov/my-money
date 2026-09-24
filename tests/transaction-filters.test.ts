@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import TransactionsView from '../src/ui/views/TransactionsView.svelte';
 import { importRows } from './helpers/importRows';
+import { remount } from './helpers/remount';
 import type { StatementCell } from './helpers/makeStatement';
 
 const ALPHA: StatementCell[] = ['15/01/2025', 'Alpha payment', -1];
@@ -179,6 +180,47 @@ test('combined filters with no match show a distinct message, and the filter bar
     .element(screen.getByText('No transactions yet. Import a statement to get started.'))
     .not.toBeInTheDocument();
   await expect.element(screen.getByRole('combobox', { name: 'Period' })).toBeVisible();
+});
+
+test('filters survive a remount through the URL', async () => {
+  await importRows(ALL);
+  const first = await render(TransactionsView);
+
+  const period = first.getByRole('combobox', { name: 'Period' });
+  await period.selectOptions(period.getByRole('option', { name: /^2025-02$/ }));
+  await first.getByRole('searchbox', { name: 'Search' }).fill('beta');
+  await expect.element(bodyRows(first)).toHaveLength(2);
+
+  const screen = await remount(TransactionsView);
+
+  await expect.element(screen.getByRole('combobox', { name: 'Period' })).toHaveDisplayValue('2025-02');
+  await expect.element(screen.getByRole('searchbox', { name: 'Search' })).toHaveValue('beta');
+  await expect.element(bodyRows(screen)).toHaveLength(2);
+  await expect.element(screen.getByRole('cell', { name: /^Beta payment$/ })).toBeVisible();
+});
+
+test('unknown filter values fall back to All', async () => {
+  await importRows(ALL);
+  location.hash = '#/transactions?category=nope&kind=nope&period=soon';
+  const screen = await render(TransactionsView);
+
+  await expect.element(bodyRows(screen)).toHaveLength(6);
+  await expect
+    .element(screen.getByRole('combobox', { name: /^Category$/ }))
+    .toHaveDisplayValue('All categories');
+  await expect.element(screen.getByRole('combobox', { name: 'Kind' })).toHaveDisplayValue('All kinds');
+  await expect
+    .element(screen.getByRole('combobox', { name: 'Period' }))
+    .toHaveDisplayValue('All periods');
+});
+
+test('a period with no rows is still offered', async () => {
+  await importRows(ALL);
+  location.hash = '#/transactions?period=2023-07';
+  const screen = await render(TransactionsView);
+
+  await expect.element(screen.getByRole('combobox', { name: 'Period' })).toHaveDisplayValue('2023-07');
+  await expect.element(screen.getByText('No transactions match the filters.')).toBeVisible();
 });
 
 test('an empty database keeps its own message and no filter bar', async () => {

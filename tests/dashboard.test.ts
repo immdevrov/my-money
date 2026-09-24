@@ -7,6 +7,7 @@ import { MIXED, MIXED_CATEGORIES, MIXED_OPTIONS, MONTHS } from './helpers/dashbo
 import { freezeDate } from './helpers/freezeDate';
 import { importRows } from './helpers/importRows';
 import type { StatementCell } from './helpers/makeStatement';
+import { remount } from './helpers/remount';
 
 type Screen = Awaited<ReturnType<typeof render>>;
 
@@ -151,6 +152,26 @@ test('compares months against the median and previous baselines', SLOW, async ()
   await expectRow(screen, 1, ['Groceries', '120.00', '0.00', '+120.00', '—']);
   await expectRow(screen, 2, ['Transport', '30.00', '0.00', '+30.00', '—']);
   await expectRow(screen, 3, ['Total spending', '150.00', '0.00', '+150.00', '—']);
+});
+
+test('the total baseline comes from per-period totals', SLOW, async () => {
+  freezeDate('2025-05-15T12:00:00');
+  await importRows([
+    ['10/01/2025', 'Grocer Jan', -100],
+    ['10/02/2025', 'Taxi Feb', -100],
+    ['10/04/2025', 'Grocer Apr', -10],
+  ]);
+  await categorize(CATEGORIES);
+
+  const screen = await render(DashboardView);
+  await expect.element(screen.getByLabelText(/^Period$/)).toHaveDisplayValue('2025-04');
+
+  const baseline = screen.getByLabelText(/^Baseline$/);
+  await baseline.selectOptions(baseline.getByRole('option', { name: 'Median' }));
+
+  await expectRow(screen, 1, ['Groceries', '10.00', '0.00', '+10.00', '—']);
+  await expectRow(screen, 2, ['Total spending', '10.00', '100.00', '-90.00', '-90%']);
+  await expect.element(spendingRows(screen).nth(3)).not.toBeInTheDocument();
 });
 
 test('previous is insufficient for the first period in the span', SLOW, async () => {
@@ -348,6 +369,24 @@ test('an unknown period in the URL falls back to the default', async () => {
   const screen = await render(DashboardView);
 
   await expect.element(screen.getByLabelText(/^Period$/)).toHaveDisplayValue('2025-05');
+});
+
+test('the shown period stays pinned after the month changes', SLOW, async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(MONTHS);
+  await categorize(CATEGORIES);
+
+  const screen = await render(DashboardView);
+  await expect.element(screen.getByLabelText(/^Period$/)).toHaveDisplayValue('2025-05');
+
+  const baseline = screen.getByLabelText(/^Baseline$/);
+  await baseline.selectOptions(baseline.getByRole('option', { name: 'Median' }));
+
+  freezeDate('2025-07-15T12:00:00');
+  const remounted = await remount(DashboardView);
+
+  await expect.element(remounted.getByLabelText(/^Period$/)).toHaveDisplayValue('2025-05');
+  await expect.element(remounted.getByLabelText(/^Baseline$/)).toHaveDisplayValue('Median');
 });
 
 test('an empty database shows the empty message', async () => {

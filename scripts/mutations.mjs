@@ -34,6 +34,9 @@ const RULEDB = 'src/db/rules.ts';
 const RULEVIEW = 'src/ui/views/RulesView.svelte';
 const RULEVALIDATE = 'src/categorize/validate.ts';
 const PERIOD = 'src/aggregate/period.ts';
+const COMPARE = 'src/aggregate/compare.ts';
+const DASHVIEW = 'src/ui/views/DashboardView.svelte';
+const HASHQUERY = 'src/ui/hashQuery.ts';
 
 const headerFilter = R`      .filter((cell) => cell.columnIndex > detailsIndex && cell.text !== '');`;
 
@@ -425,4 +428,167 @@ export const MUTATIONS = [
     `afterDistance < beforeDistance ? after : before`, `afterDistance > beforeDistance ? after : before`],
   ['M137 a tie goes to the earlier rate', RATES,
     `afterDistance < beforeDistance`, `afterDistance <= beforeDistance`],
+
+  ['M138 pool excludes the current period', COMPARE,
+    'const pool = span.filter((candidate) => candidate !== current && candidate !== period);',
+    'const pool = span.filter((candidate) => candidate !== period && current === current);'],
+  ['M139 pool excludes the compared period', COMPARE,
+    'const pool = span.filter((candidate) => candidate !== current && candidate !== period);',
+    'const pool = span.filter((candidate) => candidate !== current);'],
+  ['M140 baseline threshold is 3 periods', COMPARE,
+    'const MIN_POOL = 3;', 'const MIN_POOL = 2;'],
+  ['M141 mean zero-fills empty periods', COMPARE,
+    `  if (baseline === 'mean') {
+    return roundedDivide(
+      values.reduce((sum, value) => sum + value, 0),
+      values.length,
+    );
+  }`,
+    `  if (baseline === 'mean') {
+    return roundedDivide(
+      values.reduce((sum, value) => sum + value, 0),
+      values.filter((value) => value !== 0).length,
+    );
+  }`],
+  ['M142 mean rounds half-up', COMPARE,
+    `  if (baseline === 'mean') {
+    return roundedDivide(
+      values.reduce((sum, value) => sum + value, 0),
+      values.length,
+    );
+  }`,
+    `  if (baseline === 'mean') {
+    return Math.trunc(values.reduce((sum, value) => sum + value, 0) / values.length);
+  }`],
+  ['M143 median averages the two middle values', COMPARE,
+    'return roundedDivide((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0), 2);',
+    'return sorted[middle] ?? 0;'],
+  ['M144 previous must lie inside the span', COMPARE,
+    'const previous = inSpan.has(previousCandidate) ? previousCandidate : null;',
+    'const previous = (inSpan.has(previousCandidate) || true) ? previousCandidate : null;'],
+  ['M145 total baseline from per-period totals', COMPARE,
+    `  const total = comparisonRow(
+    null,
+    TOTAL_NAMES[tab],
+    buckets.total.get(period) ?? 0,
+    baselineOf(buckets.total),
+  );`,
+    `  const total = comparisonRow(
+    null,
+    TOTAL_NAMES[tab],
+    buckets.total.get(period) ?? 0,
+    rows.reduce((sum, row) => sum + (row.baseline === 'insufficient' ? 0 : row.baseline), 0),
+  );`],
+  ['M146 transfer-type rows excluded from spending', COMPARE,
+    `if (category.type === 'expense') return 'spending';`,
+    `if (category.type === 'expense' || category.type === 'transfer') return 'spending';`],
+  ['M147 ignore-type rows excluded from income', COMPARE,
+    `if (category.type === 'income') return 'income';`,
+    `if (category.type === 'income' || category.type === 'ignore') return 'income';`],
+  ['M148 uncategorized rows split by sign', COMPARE,
+    `if (row.amountMinor < 0) return 'spending';`,
+    `if (row.amountMinor > 0) return 'spending';`],
+  ['M149 categorized rows dispatch by category type', COMPARE,
+    `if (category.type === 'expense') return 'spending';`,
+    `if (row.amountMinor < 0) return 'spending';`],
+  ['M150 spending amounts are negated', COMPARE,
+    `const amount = tab === 'spending' ? -gel : gel;`,
+    `const amount = gel;`],
+  ['M151 rows bucket by effectiveDate', COMPARE,
+    'const rowPeriod = periodOf(row.effectiveDate, type);',
+    'const rowPeriod = periodOf(row.postingDate, type);'],
+  ['M152 row visibility uses current or baseline', COMPARE,
+    `    const row = comparisonRow(categoryId, name, sums.get(period) ?? 0, baselineOf(sums));
+    const shownBaseline = row.baseline === 'insufficient' ? 0 : row.baseline;
+    if (row.current !== 0 || shownBaseline !== 0) rows.push(row);`,
+    `    const row = comparisonRow(categoryId, name, sums.get(period) ?? 0, baselineOf(sums));
+    if (row.current !== 0) rows.push(row);`],
+  ['M153 rows sort by current descending', COMPARE,
+    'rows.sort((a, b) => b.current - a.current || a.name.localeCompare(b.name));',
+    'rows.sort((a, b) => a.current - b.current || a.name.localeCompare(b.name));'],
+  ['M154 missing-rate count scoped to on-screen periods', COMPARE,
+    'if (onScreen.has(rowPeriod)) missingRate += 1;',
+    'if (onScreen.has(rowPeriod) || true) missingRate += 1;'],
+  ['M155 missing-rate excludes transfer/ignore rows', COMPARE,
+    `    const category = row.categoryId === null ? undefined : categories.get(row.categoryId);
+    const tab = tabOf(row, category);
+    if (tab === null) continue;
+
+    const gel = gelAmount(row, table);
+    if (gel === null) {
+      if (onScreen.has(rowPeriod)) missingRate += 1;
+      continue;
+    }`,
+    `    const category = row.categoryId === null ? undefined : categories.get(row.categoryId);
+    const tab = tabOf(row, category);
+
+    const gel = gelAmount(row, table);
+    if (gel === null) {
+      if (onScreen.has(rowPeriod)) missingRate += 1;
+      continue;
+    }
+    if (tab === null) continue;`],
+  ['M156 missing-rate text pluralizes correctly', DASHVIEW,
+    `const noun = n === 1 ? 'transaction' : 'transactions';`,
+    `const noun = n === 1 ? 'transactions' : 'transaction';`],
+  ['M157 default period is the last complete one', PERIOD,
+    'const defaultPeriod = span[1] ?? current;', 'const defaultPeriod = span[0] ?? current;'],
+  ['M159 deltaPct null only at zero baseline', COMPARE,
+    'const deltaPct = baseline === 0 ? null : roundedDivide(delta * 100, baseline);',
+    'const deltaPct = baseline !== 0 ? null : roundedDivide(delta * 100, baseline);'],
+  ['M160 percent rounds half-up', COMPARE,
+    'const deltaPct = baseline === 0 ? null : roundedDivide(delta * 100, baseline);',
+    'const deltaPct = baseline === 0 ? null : Math.trunc((delta * 100) / baseline);'],
+  ['M161 unknown category filter value falls back', TXVIEW,
+    `  const categoryFilter = $derived.by(() => {
+    if (query.category === UNCATEGORIZED || $categories === undefined) return query.category;
+    return $categories.some((category) => category.id === query.category) ? query.category : '';
+  });`,
+    `  const categoryFilter = $derived.by(() => {
+    if (query.category === UNCATEGORIZED || $categories === undefined) return query.category;
+    return query.category;
+  });`],
+  ['M162 active period always offered', TXVIEW,
+    'if (options.some((option) => option.value === active)) return options;',
+    'if (!options.some((option) => option.value === active)) return options;'],
+  ['M163 every filter change writes the query', TXVIEW,
+    `    replaceQuery({
+      period: periodFilter,
+      category: categoryFilter,
+      kind: kindFilter,
+      q: searchFilter,
+    });`,
+    `    replaceQuery({ period: '', category: '', kind: '', q: '' });`],
+  ['M164 drill-down link carries the category', DASHVIEW,
+    `{@render comparisonRow(row, drillHref(period, row.categoryId ?? 'uncategorized'))}`,
+    `{@render comparisonRow(row, drillHref(period))}`],
+  ['M165 drill-down link carries the period', DASHVIEW,
+    `{@render comparisonRow(tableData.total, drillHref(period))}`,
+    `{@render comparisonRow(tableData.total, drillHref(''))}`],
+  ['M166 uncategorized drill-down uses the uncategorized marker', DASHVIEW,
+    `row.categoryId ?? 'uncategorized'`,
+    `row.categoryId ?? undefined`],
+  ['M167 dashboard state read from the query on mount', DASHVIEW,
+    'let query = $state(dashboardQuery());',
+    "let query = $state({ type: '', period: '', baseline: '', tab: '' });"],
+  ['M168 arrow keys switch the active tab', DASHVIEW,
+    `    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;`,
+    `    if (event.key !== 'ArrowRight' || String(event.key) !== 'ArrowLeft') return;`],
+  ['M169 App matches routes on the path before ?', HASHQUERY,
+    `  if (index === -1) return { path: hash, query: '' };
+  return { path: hash.slice(0, index), query: hash.slice(index + 1) };`,
+    `  if (index === -1) return { path: hash, query: '' };
+  return { path: hash, query: hash.slice(index + 1) };`],
+  ['M170 same-route hash change re-reads filters', TXVIEW,
+    `  $effect(() =>
+    onHashChange(() => {
+      query = queryFilters();
+    }),
+  );`,
+    `  $effect(() =>
+    onHashChange(() => {}),
+  );`],
+  ['M171 update writes the resolved period', DASHVIEW,
+    'period: view?.period ?? query.period,',
+    'period: query.period,'],
 ];

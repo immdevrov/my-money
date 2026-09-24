@@ -52,8 +52,9 @@ function run(command) {
   }
 }
 
-const selected = only
-  ? MUTATIONS.filter(([id]) => id.split(/\s+/)[0].toLowerCase() === only.toLowerCase())
+const onlyIds = only ? only.split(',').map((s) => s.trim().toLowerCase()) : null;
+const selected = onlyIds
+  ? MUTATIONS.filter(([id]) => onlyIds.includes(id.split(/\s+/)[0].toLowerCase()))
   : MUTATIONS;
 if (selected.length === 0) {
   console.log(`no mutation matches --only ${only}`);

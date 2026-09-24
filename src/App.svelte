@@ -3,6 +3,7 @@
   import { requestPersistentStorage } from './db/persist';
   import CategoriesView from './ui/views/CategoriesView.svelte';
   import ImportView from './ui/views/ImportView.svelte';
+  import RulesView from './ui/views/RulesView.svelte';
   import StubView from './ui/views/StubView.svelte';
   import TransactionsView from './ui/views/TransactionsView.svelte';
 
@@ -61,6 +62,8 @@
     <TransactionsView />
   {:else if active.path === 'categories'}
     <CategoriesView />
+  {:else if active.path === 'rules'}
+    <RulesView />
   {:else}
     <StubView title={active.label} phase={active.phase} />
   {/if}

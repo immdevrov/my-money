@@ -1,5 +1,6 @@
 import { expect, test } from 'vitest';
 import { render } from 'vitest-browser-svelte';
+import { userEvent } from 'vitest/browser';
 import DashboardView from '../src/ui/views/DashboardView.svelte';
 import { categorize } from './helpers/categorize';
 import { freezeDate } from './helpers/freezeDate';
@@ -42,21 +43,64 @@ const YEARS: StatementCell[][] = [
 
 const GROCERIES = [{ name: 'Groceries', contains: 'Grocer' }];
 
+const MIXED_OPTIONS = { header: ['Date', 'Details', 'GEL', 'USD'] };
+
+const MIXED: StatementCell[][] = [
+  ...MONTHS.map((row) => [...row, null]),
+  ['25/03/2025', 'Salary Mar', 1500, null],
+  ['25/04/2025', 'Salary Apr', 1500, null],
+  ['25/05/2025', 'Salary May', 1500, null],
+  ['20/05/2025', 'Grocer refund', 10, null],
+  ['15/05/2025', 'Mystery out', -7, null],
+  ['16/05/2025', 'Mystery in', 5, null],
+  ['18/05/2025', 'Savings May', -500, null],
+  ['19/05/2025', 'Hidden May', -60, null],
+  ['10/05/2025', 'Income - Amount GEL273.50; Foreign Exchange. FX Rate:2.735.', 273.5, null],
+  ['10/05/2025', 'Payment - Amount USD100.00; Foreign Exchange. FX Rate:2.735', null, -100],
+];
+
+const MIXED_CATEGORIES = [
+  { name: 'Groceries', contains: 'Grocer' },
+  { name: 'Transport', contains: 'Taxi' },
+  { name: 'Salary', type: 'income' as const, contains: 'Salary' },
+  { name: 'Savings', type: 'transfer' as const, contains: 'Savings' },
+  { name: 'Hidden', type: 'ignore' as const, contains: 'Hidden' },
+];
+
+const BOUNDARY_ROWS: StatementCell[][] = [
+  [
+    '01/05/2025',
+    'Payment - Amount: GEL25.00; Merchant: Grocer Omega, Tbilisi; MCC:1001; Date: 30/04/2025 18:00; Card No: ****1111',
+    -25,
+  ],
+  ['10/01/2025', 'Grocer Jan', -100],
+  ['10/02/2025', 'Grocer Feb', -50],
+  ['10/03/2025', 'Grocer Mar', -80],
+];
+
 function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
 }
 
-function spendingRows(screen: Screen) {
-  return screen.getByRole('table', { name: 'Spending comparison' }).getByRole('row');
+function rowsIn(screen: Screen, tableName: string) {
+  return screen.getByRole('table', { name: tableName }).getByRole('row');
 }
 
-async function expectRow(screen: Screen, index: number, cells: string[]) {
+function spendingRows(screen: Screen) {
+  return rowsIn(screen, 'Spending comparison');
+}
+
+async function expectRowIn(screen: Screen, tableName: string, index: number, cells: string[]) {
   const [name = '', ...values] = cells;
-  const row = spendingRows(screen).nth(index);
+  const row = rowsIn(screen, tableName).nth(index);
   await expect.element(row.getByRole('rowheader')).toHaveTextContent(exactly(name));
   for (const [column, value] of values.entries()) {
     await expect.element(row.getByRole('cell').nth(column)).toHaveTextContent(exactly(value));
   }
+}
+
+async function expectRow(screen: Screen, index: number, cells: string[]) {
+  return expectRowIn(screen, 'Spending comparison', index, cells);
 }
 
 const SLOW = { timeout: 5000 };
@@ -195,6 +239,93 @@ test('resets to the default year and compares against each baseline', async () =
   await baseline.selectOptions(baseline.getByRole('option', { name: 'Previous period' }));
   await expectRow(screen, 1, ['Groceries', '300.00', '0.00', '+300.00', '—']);
   await expectRow(screen, 2, ['Total spending', '300.00', '0.00', '+300.00', '—']);
+});
+
+test('spending nets refunds, splits uncategorized by sign and excludes transfers', SLOW, async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(MIXED, MIXED_OPTIONS);
+  await categorize(MIXED_CATEGORIES);
+
+  const screen = await render(DashboardView);
+
+  await expectRow(screen, 1, ['Groceries', '110.00', '57.50', '+52.50', '+91%']);
+  await expectRow(screen, 2, ['Transport', '30.00', '7.50', '+22.50', '+300%']);
+  await expectRow(screen, 3, ['Uncategorized', '7.00', '0.00', '+7.00', '—']);
+  await expectRow(screen, 4, ['Total spending', '147.00', '65.00', '+82.00', '+126%']);
+  await expect.element(spendingRows(screen).nth(5)).not.toBeInTheDocument();
+
+  const spendingTable = screen.getByRole('table', { name: 'Spending comparison' });
+  await expect.element(spendingTable.getByText('Savings')).not.toBeInTheDocument();
+  await expect.element(spendingTable.getByText('Hidden')).not.toBeInTheDocument();
+  await expect.element(spendingTable.getByText('Currency conversion')).not.toBeInTheDocument();
+});
+
+test('the Income tab shows income categories and uncategorized inflows', SLOW, async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(MIXED, MIXED_OPTIONS);
+  await categorize(MIXED_CATEGORIES);
+
+  const screen = await render(DashboardView);
+  await screen.getByRole('tab', { name: 'Income' }).click();
+
+  await expect
+    .element(screen.getByRole('table', { name: 'Spending comparison' }))
+    .not.toBeInTheDocument();
+
+  await expectRowIn(screen, 'Income comparison', 1, [
+    'Salary',
+    '1500.00',
+    '750.00',
+    '+750.00',
+    '+100%',
+  ]);
+  await expectRowIn(screen, 'Income comparison', 2, ['Uncategorized', '5.00', '0.00', '+5.00', '—']);
+  await expectRowIn(screen, 'Income comparison', 3, [
+    'Total income',
+    '1505.00',
+    '750.00',
+    '+755.00',
+    '+101%',
+  ]);
+  await expect.element(rowsIn(screen, 'Income comparison').nth(4)).not.toBeInTheDocument();
+});
+
+test('arrow keys move between tabs', SLOW, async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(MIXED, MIXED_OPTIONS);
+  await categorize(MIXED_CATEGORIES);
+
+  const screen = await render(DashboardView);
+  const spendingTab = screen.getByRole('tab', { name: 'Spending' });
+  const incomeTab = screen.getByRole('tab', { name: 'Income' });
+
+  await spendingTab.click();
+  await expect.element(spendingTab).toHaveFocus();
+
+  await userEvent.keyboard('{ArrowRight}');
+
+  await expect.element(incomeTab).toHaveFocus();
+  await expect.element(incomeTab).toHaveAttribute('aria-selected', 'true');
+  await expect.element(screen.getByRole('table', { name: 'Income comparison' })).toBeVisible();
+});
+
+test('a month-boundary card payment counts in its effective month', SLOW, async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(BOUNDARY_ROWS);
+  await categorize([{ name: 'Groceries', contains: 'Grocer' }]);
+
+  const screen = await render(DashboardView);
+  const period = screen.getByLabelText(/^Period$/);
+
+  await period.selectOptions(period.getByRole('option', { name: '2025-04' }));
+  await expectRow(screen, 1, ['Groceries', '25.00', '57.50', '-32.50', '-57%']);
+  await expectRow(screen, 2, ['Total spending', '25.00', '57.50', '-32.50', '-57%']);
+  await expect.element(spendingRows(screen).nth(3)).not.toBeInTheDocument();
+
+  await period.selectOptions(period.getByRole('option', { name: '2025-05' }));
+  await expectRow(screen, 1, ['Groceries', '0.00', '63.75', '-63.75', '-100%']);
+  await expectRow(screen, 2, ['Total spending', '0.00', '63.75', '-63.75', '-100%']);
+  await expect.element(spendingRows(screen).nth(3)).not.toBeInTheDocument();
 });
 
 test('an empty database shows the empty message', async () => {

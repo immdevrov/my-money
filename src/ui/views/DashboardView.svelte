@@ -1,6 +1,11 @@
 <script lang="ts">
   import { liveQuery } from 'dexie';
-  import { compare, type Baseline, type ComparisonRow } from '../../aggregate/compare';
+  import {
+    compare,
+    type Baseline,
+    type ComparisonRow,
+    type ComparisonTable,
+  } from '../../aggregate/compare';
   import {
     dashboardPeriods,
     localToday,
@@ -11,12 +16,17 @@
   import { listAll } from '../../db/transactions';
   import { formatMinor } from '../../import/amount';
 
+  type Tab = 'spending' | 'income';
+
   const transactions = liveQuery(async () => listAll());
   const categories = liveQuery(async () => listCategories());
 
   let periodType = $state<PeriodType>('month');
   let chosenPeriod = $state<string | null>(null);
   let baseline = $state<Baseline>('mean');
+  let activeTab = $state<Tab>('spending');
+  let spendingTabEl = $state<HTMLButtonElement | null>(null);
+  let incomeTabEl = $state<HTMLButtonElement | null>(null);
 
   const view = $derived.by(() => {
     const rows = $transactions;
@@ -42,7 +52,7 @@
       baseline,
     });
 
-    return { period, options, spending: comparison.spending };
+    return { period, options, spending: comparison.spending, income: comparison.income };
   });
 
   function signed(minor: number): string {
@@ -52,6 +62,17 @@
   function percent(value: number | null): string {
     if (value === null) return '—';
     return value > 0 ? `+${value}%` : `${value}%`;
+  }
+
+  function selectTab(tab: Tab) {
+    activeTab = tab;
+  }
+
+  function onTabKeydown(event: KeyboardEvent) {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+    event.preventDefault();
+    activeTab = activeTab === 'spending' ? 'income' : 'spending';
+    (activeTab === 'spending' ? spendingTabEl : incomeTabEl)?.focus();
   }
 </script>
 
@@ -102,8 +123,59 @@
     </p>
   </div>
 
+  <div class="tabs" role="tablist" aria-label="Comparison">
+    <button
+      type="button"
+      role="tab"
+      id="dashboard-tab-spending"
+      aria-selected={activeTab === 'spending'}
+      aria-controls="dashboard-panel-spending"
+      tabindex={activeTab === 'spending' ? 0 : -1}
+      bind:this={spendingTabEl}
+      onclick={() => selectTab('spending')}
+      onkeydown={onTabKeydown}
+    >
+      Spending
+    </button>
+    <button
+      type="button"
+      role="tab"
+      id="dashboard-tab-income"
+      aria-selected={activeTab === 'income'}
+      aria-controls="dashboard-panel-income"
+      tabindex={activeTab === 'income' ? 0 : -1}
+      bind:this={incomeTabEl}
+      onclick={() => selectTab('income')}
+      onkeydown={onTabKeydown}
+    >
+      Income
+    </button>
+  </div>
+
+  {#if activeTab === 'spending'}
+    <div
+      class="tabpanel"
+      role="tabpanel"
+      id="dashboard-panel-spending"
+      aria-labelledby="dashboard-tab-spending"
+    >
+      {@render comparisonTable('Spending comparison', view.spending)}
+    </div>
+  {:else}
+    <div
+      class="tabpanel"
+      role="tabpanel"
+      id="dashboard-panel-income"
+      aria-labelledby="dashboard-tab-income"
+    >
+      {@render comparisonTable('Income comparison', view.income)}
+    </div>
+  {/if}
+{/if}
+
+{#snippet comparisonTable(caption: string, tableData: ComparisonTable)}
   <table>
-    <caption>Spending comparison</caption>
+    <caption>{caption}</caption>
     <thead>
       <tr>
         <th scope="col">Category</th>
@@ -114,15 +186,15 @@
       </tr>
     </thead>
     <tbody>
-      {#each view.spending.rows as row (row.categoryId)}
+      {#each tableData.rows as row (row.categoryId)}
         {@render comparisonRow(row)}
       {/each}
     </tbody>
     <tfoot>
-      {@render comparisonRow(view.spending.total)}
+      {@render comparisonRow(tableData.total)}
     </tfoot>
   </table>
-{/if}
+{/snippet}
 
 {#snippet comparisonRow(row: ComparisonRow)}
   <tr>
@@ -151,6 +223,34 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-1);
+  }
+
+  .tabs {
+    display: flex;
+    gap: var(--space-3);
+    border-bottom: 1px solid var(--border);
+    margin-top: var(--space-3);
+  }
+
+  .tabs button {
+    appearance: none;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: var(--space-2) var(--space-1);
+    font: inherit;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .tabs button[aria-selected='true'] {
+    color: var(--text);
+    font-weight: 600;
+    border-bottom-color: var(--accent);
+  }
+
+  .tabpanel {
+    margin-top: var(--space-2);
   }
 
   table {

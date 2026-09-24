@@ -46,7 +46,8 @@ export async function categorize(specs: CategorySpec[]): Promise<void> {
     );
     await rules.getByRole('button', { name: 'Save rule' }).click();
     const ruleTable = rules.getByRole('table', { name: 'Rules' });
-    await expect.element(ruleTable.getByRole('cell', { name: exactly(pattern) })).toBeVisible();
+    const newRow = ruleTable.getByRole('row').nth(1);
+    await expect.element(newRow.getByRole('cell').nth(3)).toHaveTextContent(exactly(pattern));
   }
 
   cleanup();

@@ -1,3 +1,5 @@
+import type { Transaction } from '../domain/types';
+
 export type PeriodOption = { value: string; label: string };
 
 function quarterOf(effectiveDate: string): string {
@@ -77,6 +79,21 @@ export function periodsInSpan(earliest: string, today: string, type: PeriodType)
   }
 
   return periods;
+}
+
+export function dashboardPeriods(
+  rows: Transaction[],
+  today: string,
+  type: PeriodType,
+): { span: string[]; current: string; defaultPeriod: string } {
+  const earliest = rows.reduce(
+    (min, row) => (row.effectiveDate < min ? row.effectiveDate : min),
+    today,
+  );
+  const span = periodsInSpan(earliest, today, type);
+  const current = periodOf(today, type);
+  const defaultPeriod = span[1] ?? current;
+  return { span, current, defaultPeriod };
 }
 
 export function periodLabel(period: string): string {

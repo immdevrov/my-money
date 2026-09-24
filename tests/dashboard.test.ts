@@ -25,6 +25,23 @@ const CATEGORIES = [
   { name: 'Unused' },
 ];
 
+const QUARTERS: StatementCell[][] = [
+  ['10/02/2024', 'Grocer 24Q1', -30],
+  ['10/05/2024', 'Grocer 24Q2', -60],
+  ['10/08/2024', 'Grocer 24Q3', -120],
+  ['10/02/2025', 'Grocer 25Q1', -40],
+  ['10/04/2025', 'Grocer 25Q2', -10],
+];
+
+const YEARS: StatementCell[][] = [
+  ['01/03/2021', 'Grocer 2021', -100],
+  ['01/03/2022', 'Grocer 2022', -250],
+  ['01/03/2024', 'Grocer 2024', -300],
+  ['01/03/2025', 'Grocer 2025', -50],
+];
+
+const GROCERIES = [{ name: 'Groceries', contains: 'Grocer' }];
+
 function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
 }
@@ -52,7 +69,7 @@ test('defaults to the last complete month and compares it with the mean', SLOW, 
   const screen = await render(DashboardView);
 
   await expect.element(screen.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
-  const period = screen.getByLabelText('Period');
+  const period = screen.getByLabelText(/^Period$/);
   await expect.element(period).toHaveDisplayValue('2025-05');
   await expect
     .element(period.getByRole('option').first())
@@ -74,7 +91,7 @@ test('the current month can be compared but never feeds a baseline', SLOW, async
 
   const screen = await render(DashboardView);
 
-  const period = screen.getByLabelText('Period');
+  const period = screen.getByLabelText(/^Period$/);
   await period.selectOptions(period.getByRole('option', { name: '2025-06 (in progress)' }));
 
   await expectRow(screen, 1, ['Groceries', '40.00', '70.00', '-30.00', '-43%']);
@@ -92,9 +109,92 @@ test('fewer than 3 complete periods shows insufficient data', async () => {
 
   const screen = await render(DashboardView);
 
-  await expect.element(screen.getByLabelText('Period')).toHaveDisplayValue('2025-05');
+  await expect.element(screen.getByLabelText(/^Period$/)).toHaveDisplayValue('2025-05');
   await expectRow(screen, 1, ['Groceries', '120.00', 'insufficient data', '', '']);
   await expectRow(screen, 2, ['Total spending', '120.00', 'insufficient data', '', '']);
+});
+
+test('compares months against the median and previous baselines', SLOW, async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(MONTHS);
+  await categorize(CATEGORIES);
+
+  const screen = await render(DashboardView);
+  const baseline = screen.getByLabelText('Baseline');
+
+  await baseline.selectOptions(baseline.getByRole('option', { name: 'Median' }));
+  await expectRow(screen, 1, ['Groceries', '120.00', '65.00', '+55.00', '+85%']);
+  await expectRow(screen, 2, ['Transport', '30.00', '5.00', '+25.00', '+500%']);
+  await expectRow(screen, 3, ['Total spending', '150.00', '70.00', '+80.00', '+114%']);
+
+  await baseline.selectOptions(baseline.getByRole('option', { name: 'Previous period' }));
+  await expectRow(screen, 1, ['Groceries', '120.00', '0.00', '+120.00', '—']);
+  await expectRow(screen, 2, ['Transport', '30.00', '0.00', '+30.00', '—']);
+  await expectRow(screen, 3, ['Total spending', '150.00', '0.00', '+150.00', '—']);
+});
+
+test('previous is insufficient for the first period in the span', SLOW, async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(MONTHS);
+  await categorize(CATEGORIES);
+
+  const screen = await render(DashboardView);
+  const period = screen.getByLabelText(/^Period$/);
+  await period.selectOptions(period.getByRole('option', { name: '2025-01' }));
+  const baseline = screen.getByLabelText('Baseline');
+  await baseline.selectOptions(baseline.getByRole('option', { name: 'Previous period' }));
+
+  await expectRow(screen, 1, ['Groceries', '100.00', 'insufficient data', '', '']);
+});
+
+test('resets to the default quarter and compares against each baseline', async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(QUARTERS);
+  await categorize(GROCERIES);
+
+  const screen = await render(DashboardView);
+  const periodType = screen.getByLabelText('Period type');
+  await periodType.selectOptions(periodType.getByRole('option', { name: 'Quarter' }));
+
+  const period = screen.getByLabelText(/^Period$/);
+  await expect.element(period).toHaveDisplayValue('2025 Q1');
+
+  await expectRow(screen, 1, ['Groceries', '40.00', '52.50', '-12.50', '-24%']);
+  await expectRow(screen, 2, ['Total spending', '40.00', '52.50', '-12.50', '-24%']);
+
+  const baseline = screen.getByLabelText('Baseline');
+  await baseline.selectOptions(baseline.getByRole('option', { name: 'Median' }));
+  await expectRow(screen, 1, ['Groceries', '40.00', '45.00', '-5.00', '-11%']);
+  await expectRow(screen, 2, ['Total spending', '40.00', '45.00', '-5.00', '-11%']);
+
+  await baseline.selectOptions(baseline.getByRole('option', { name: 'Previous period' }));
+  await expectRow(screen, 1, ['Groceries', '40.00', '0.00', '+40.00', '—']);
+  await expectRow(screen, 2, ['Total spending', '40.00', '0.00', '+40.00', '—']);
+});
+
+test('resets to the default year and compares against each baseline', async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(YEARS);
+  await categorize(GROCERIES);
+
+  const screen = await render(DashboardView);
+  const periodType = screen.getByLabelText('Period type');
+  await periodType.selectOptions(periodType.getByRole('option', { name: 'Year' }));
+
+  const period = screen.getByLabelText(/^Period$/);
+  await expect.element(period).toHaveDisplayValue('2024');
+
+  await expectRow(screen, 1, ['Groceries', '300.00', '116.67', '+183.33', '+157%']);
+  await expectRow(screen, 2, ['Total spending', '300.00', '116.67', '+183.33', '+157%']);
+
+  const baseline = screen.getByLabelText('Baseline');
+  await baseline.selectOptions(baseline.getByRole('option', { name: 'Median' }));
+  await expectRow(screen, 1, ['Groceries', '300.00', '100.00', '+200.00', '+200%']);
+  await expectRow(screen, 2, ['Total spending', '300.00', '100.00', '+200.00', '+200%']);
+
+  await baseline.selectOptions(baseline.getByRole('option', { name: 'Previous period' }));
+  await expectRow(screen, 1, ['Groceries', '300.00', '0.00', '+300.00', '—']);
+  await expectRow(screen, 2, ['Total spending', '300.00', '0.00', '+300.00', '—']);
 });
 
 test('an empty database shows the empty message', async () => {
@@ -103,6 +203,6 @@ test('an empty database shows the empty message', async () => {
   await expect
     .element(screen.getByText('No transactions yet. Import a statement to see the dashboard.'))
     .toBeVisible();
-  await expect.element(screen.getByLabelText('Period')).not.toBeInTheDocument();
+  await expect.element(screen.getByLabelText(/^Period$/)).not.toBeInTheDocument();
   await expect.element(screen.getByRole('table')).not.toBeInTheDocument();
 });

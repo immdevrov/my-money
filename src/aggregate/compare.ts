@@ -1,6 +1,6 @@
 import type { Category, Transaction } from '../domain/types';
 import { gelAmount, rateTableFrom } from './gel';
-import { periodOf, periodsInSpan, previousPeriod, type PeriodType } from './period';
+import { dashboardPeriods, periodOf, previousPeriod, type PeriodType } from './period';
 
 export type Baseline = 'mean' | 'median' | 'previous';
 
@@ -137,13 +137,8 @@ export function compare(input: {
   const categories = new Map(input.categories.map((category) => [category.id, category]));
   const table = rateTableFrom(rows);
 
-  const earliest = rows.reduce(
-    (min, row) => (row.effectiveDate < min ? row.effectiveDate : min),
-    today,
-  );
-  const span = periodsInSpan(earliest, today, type);
+  const { span, current } = dashboardPeriods(rows, today, type);
   const inSpan = new Set(span);
-  const current = periodOf(today, type);
   const pool = span.filter((candidate) => candidate !== current && candidate !== period);
 
   const previousCandidate = previousPeriod(period);

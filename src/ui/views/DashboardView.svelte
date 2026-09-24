@@ -1,32 +1,32 @@
 <script lang="ts">
   import { liveQuery } from 'dexie';
-  import { compare, type ComparisonRow } from '../../aggregate/compare';
-  import { localToday, periodLabel, periodOf, periodsInSpan } from '../../aggregate/period';
+  import { compare, type Baseline, type ComparisonRow } from '../../aggregate/compare';
+  import {
+    dashboardPeriods,
+    localToday,
+    periodLabel,
+    type PeriodType,
+  } from '../../aggregate/period';
   import { listCategories } from '../../db/categories';
   import { listAll } from '../../db/transactions';
   import { formatMinor } from '../../import/amount';
 
-  const TYPE = 'month';
-  const BASELINE = 'mean';
-
   const transactions = liveQuery(async () => listAll());
   const categories = liveQuery(async () => listCategories());
 
+  let periodType = $state<PeriodType>('month');
   let chosenPeriod = $state<string | null>(null);
+  let baseline = $state<Baseline>('mean');
 
   const view = $derived.by(() => {
     const rows = $transactions;
-    if (rows === undefined || rows.length === 0) return null;
+    const cats = $categories;
+    if (rows === undefined || cats === undefined || rows.length === 0) return null;
 
     const today = localToday(new Date());
-    const earliest = rows.reduce(
-      (min, row) => (row.effectiveDate < min ? row.effectiveDate : min),
-      today,
-    );
-    const span = periodsInSpan(earliest, today, TYPE);
-    const current = periodOf(today, TYPE);
-    const fallback = span[1] ?? current;
-    const period = chosenPeriod !== null && span.includes(chosenPeriod) ? chosenPeriod : fallback;
+    const { span, current, defaultPeriod } = dashboardPeriods(rows, today, periodType);
+    const period =
+      chosenPeriod !== null && span.includes(chosenPeriod) ? chosenPeriod : defaultPeriod;
 
     const options = span.map((value) => ({
       value,
@@ -35,11 +35,11 @@
 
     const comparison = compare({
       rows,
-      categories: $categories ?? [],
+      categories: cats,
       today,
-      type: TYPE,
+      type: periodType,
       period,
-      baseline: BASELINE,
+      baseline,
     });
 
     return { period, options, spending: comparison.spending };
@@ -62,6 +62,21 @@
 {:else if view}
   <div class="pickers">
     <p class="field">
+      <label for="dashboard-period-type">Period type</label>
+      <select
+        id="dashboard-period-type"
+        value={periodType}
+        onchange={(event) => {
+          periodType = event.currentTarget.value as PeriodType;
+          chosenPeriod = null;
+        }}
+      >
+        <option value="month">Month</option>
+        <option value="quarter">Quarter</option>
+        <option value="year">Year</option>
+      </select>
+    </p>
+    <p class="field">
       <label for="dashboard-period">Period</label>
       <select
         id="dashboard-period"
@@ -71,6 +86,18 @@
         {#each view.options as option (option.value)}
           <option value={option.value}>{option.label}</option>
         {/each}
+      </select>
+    </p>
+    <p class="field">
+      <label for="dashboard-baseline">Baseline</label>
+      <select
+        id="dashboard-baseline"
+        value={baseline}
+        onchange={(event) => (baseline = event.currentTarget.value as Baseline)}
+      >
+        <option value="mean">Mean</option>
+        <option value="median">Median</option>
+        <option value="previous">Previous period</option>
       </select>
     </p>
   </div>

@@ -93,6 +93,7 @@ const SHOP_GAMMA: StatementCell[] = [
 type Screen = Awaited<ReturnType<typeof render>>;
 
 async function addCategory(screen: Screen, name: string, type: 'expense' | 'transfer' = 'expense') {
+  await screen.getByRole('button', { name: 'Add category' }).click();
   await screen.getByLabelText('Name').fill(name);
   if (type !== 'expense') {
     const typeSelect = screen.getByLabelText('Type');
@@ -105,6 +106,7 @@ async function addRule(
   screen: Screen,
   options: { field?: 'counterparty' | 'mcc' | 'details' | 'kind'; pattern: string; category: string },
 ) {
+  await screen.getByRole('button', { name: 'Add rule' }).click();
   if (options.field) {
     const fieldSelect = screen.getByLabelText('Field');
     await fieldSelect.selectOptions(fieldSelect.getByRole('option', { name: options.field }));

@@ -402,7 +402,16 @@ export const MUTATIONS = [
   }`,
     `  function onNewCategoryDialogClose() {
   }`],
-  ['M129 category form remounts only after its own save', CATVIEW,
-    `{#key \`\${editing?.id ?? 'new'}-\${addFormVersion}\`}`,
-    `{#key \`\${editing?.id ?? 'new'}-\${addFormVersion}-\${categoryList.length}\`}`],
+  ['M130 category form dialog opens modal', CATVIEW,
+    `if (formOpen && !dialogEl.open) dialogEl.showModal();`,
+    `if (formOpen && !dialogEl.open) dialogEl.show();`],
+  ['M131 rule form dialog opens modal', RULEVIEW,
+    `if (formOpen && !dialogEl.open) dialogEl.showModal();`,
+    `if (formOpen && !dialogEl.open) dialogEl.show();`],
+  ['M132 category form dialog Escape resets state', CATVIEW,
+    `  function onFormDialogClose() {
+    if (formOpen) closeForm();
+  }`,
+    `  function onFormDialogClose() {
+  }`],
 ];

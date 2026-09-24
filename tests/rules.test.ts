@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { cleanup, render } from 'vitest-browser-svelte';
 import App from '../src/App.svelte';
 import CategoriesView from '../src/ui/views/CategoriesView.svelte';
@@ -40,6 +41,7 @@ const SHOP_BETA: StatementCell[] = [
 type Screen = Awaited<ReturnType<typeof render>>;
 
 async function addCategory(screen: Screen, name: string) {
+  await screen.getByRole('button', { name: 'Add category' }).click();
   await screen.getByLabelText('Name').fill(name);
   await screen.getByRole('button', { name: 'Save category' }).click();
 }
@@ -48,6 +50,7 @@ async function addRule(
   screen: Screen,
   options: { field?: 'counterparty' | 'mcc' | 'details' | 'kind'; pattern: string; category: string },
 ) {
+  await screen.getByRole('button', { name: 'Add rule' }).click();
   if (options.field) {
     const fieldSelect = screen.getByLabelText('Field');
     await fieldSelect.selectOptions(fieldSelect.getByRole('option', { name: options.field }));
@@ -78,7 +81,10 @@ test('adding a counterparty rule categorizes every matching row and shows its ma
 
   screen = await render(RulesView);
   await addRule(screen, { pattern: 'Shop Alpha', category: 'Groceries' });
+
+  await screen.getByRole('button', { name: 'Add rule' }).click();
   await expect.element(screen.getByLabelText('Pattern')).toHaveValue('');
+  await screen.getByRole('button', { name: 'Cancel' }).click();
 
   const rows = screen.getByRole('table', { name: 'Rules' }).getByRole('row');
   await expect.element(rows).toHaveLength(2);
@@ -271,8 +277,44 @@ test('deleting a rule removes it from the table and its rows become uncategorize
   await expect.element(select).toHaveValue('uncategorized');
 });
 
+test('"Add rule" opens a modal with focus inside it; Escape closes it and no rule was added', async () => {
+  const screen = await render(RulesView);
+
+  await screen.getByRole('button', { name: 'Add rule' }).click();
+
+  const dialog = screen.getByRole('dialog', { name: 'Add rule' });
+  await expect.element(dialog).toBeVisible();
+  expect((dialog.element() as HTMLDialogElement).matches(':modal')).toBe(true);
+  await expect.element(screen.getByLabelText('Field')).toHaveFocus();
+
+  await userEvent.keyboard('{Escape}');
+
+  await expect.element(screen.getByRole('dialog', { name: 'Add rule' })).not.toBeInTheDocument();
+  await expect
+    .element(screen.getByText('No rules yet. Pick a category on a transaction to create one.'))
+    .toBeVisible();
+});
+
+test('an invalid regex keeps the Add rule modal open and shows its message', async () => {
+  const screen = await render(RulesView);
+
+  await screen.getByRole('button', { name: 'Add rule' }).click();
+  const matchSelect = screen.getByLabelText('Match');
+  await matchSelect.selectOptions(matchSelect.getByRole('option', { name: 'regex' }));
+  await screen.getByLabelText('Pattern').fill('(');
+  await screen.getByRole('button', { name: 'Save rule' }).click();
+
+  await expect
+    .element(screen.getByText('Pattern is not a valid regular expression.'))
+    .toBeVisible();
+  const dialog = screen.getByRole('dialog', { name: 'Add rule' });
+  await expect.element(dialog).toBeVisible();
+  expect((dialog.element() as HTMLDialogElement).matches(':modal')).toBe(true);
+});
+
 test('an empty pattern and an invalid regex are rejected without adding a rule', async () => {
   const screen = await render(RulesView);
+  await screen.getByRole('button', { name: 'Add rule' }).click();
 
   await screen.getByRole('button', { name: 'Save rule' }).click();
   await expect.element(screen.getByText('Pattern is required.')).toBeVisible();

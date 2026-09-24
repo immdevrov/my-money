@@ -8,25 +8,18 @@
 
   const categories = liveQuery(async () => listCategories());
 
+  let formOpen = $state(false);
   let editing = $state<Category | null>(null);
   let deleteTarget = $state<Category | null>(null);
   let deleteCounts = $state<{ rules: number; manual: number }>({ rules: 0, manual: 0 });
-  let addFormVersion = $state(0);
-  let pendingSavedId = $state<string | null>(null);
+  let formDialogEl = $state<HTMLDialogElement | null>(null);
   let deleteDialogEl = $state<HTMLDialogElement | null>(null);
 
   $effect(() => {
-    const list = $categories;
-    const id = pendingSavedId;
-    if (
-      list !== undefined &&
-      id !== null &&
-      editing === null &&
-      list.some((category) => category.id === id)
-    ) {
-      pendingSavedId = null;
-      addFormVersion += 1;
-    }
+    const dialogEl = formDialogEl;
+    if (!dialogEl) return;
+    if (formOpen && !dialogEl.open) dialogEl.showModal();
+    else if (!formOpen && dialogEl.open) dialogEl.close();
   });
 
   $effect(() => {
@@ -36,20 +29,28 @@
     else if (!deleteTarget && dialogEl.open) dialogEl.close();
   });
 
-  async function onSave(category: Category) {
-    const wasAdd = !editing;
-    await saveCategory(category);
+  function openAdd() {
     editing = null;
-    if (wasAdd) pendingSavedId = category.id;
+    formOpen = true;
   }
 
-  function startEdit(category: Category) {
-    pendingSavedId = null;
+  function openEdit(category: Category) {
     editing = category;
+    formOpen = true;
   }
 
-  function onEditCancel() {
+  function closeForm() {
+    formOpen = false;
     editing = null;
+  }
+
+  async function onSave(category: Category) {
+    await saveCategory(category);
+    closeForm();
+  }
+
+  function onFormDialogClose() {
+    if (formOpen) closeForm();
   }
 
   async function openDelete(category: Category) {
@@ -80,6 +81,10 @@
 
 <h1>Categories</h1>
 
+<p>
+  <button type="button" onclick={openAdd}>Add category</button>
+</p>
+
 <table>
   <caption>Categories</caption>
   <thead>
@@ -100,7 +105,7 @@
           {colourName(category.color)}
         </td>
         <td>
-          <button type="button" onclick={() => startEdit(category)}>Edit {category.name}</button>
+          <button type="button" onclick={() => openEdit(category)}>Edit {category.name}</button>
           {#if category.id !== CURRENCY_CONVERSION_ID}
             <button type="button" onclick={() => openDelete(category)}>Delete {category.name}</button>
           {/if}
@@ -110,18 +115,17 @@
   </tbody>
 </table>
 
-{#if $categories !== undefined}
-  {@const categoryList = $categories}
-  <h2>{editing ? 'Edit category' : 'Add category'}</h2>
-  {#key `${editing?.id ?? 'new'}-${addFormVersion}`}
+<dialog bind:this={formDialogEl} aria-labelledby="category-form-heading" onclose={onFormDialogClose}>
+  <h2 id="category-form-heading">{editing ? 'Edit category' : 'Add category'}</h2>
+  {#if formOpen}
     <CategoryForm
       category={editing ?? undefined}
-      categories={categoryList}
+      categories={$categories ?? []}
       onsave={onSave}
-      oncancel={editing ? onEditCancel : undefined}
+      oncancel={closeForm}
     />
-  {/key}
-{/if}
+  {/if}
+</dialog>
 
 <dialog bind:this={deleteDialogEl} aria-labelledby="delete-category-heading" onclose={onDeleteDialogClose}>
   <h2 id="delete-category-heading">Delete category</h2>

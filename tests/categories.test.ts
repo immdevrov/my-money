@@ -54,6 +54,7 @@ async function addCategory(
   name: string,
   colourName?: string,
 ) {
+  await screen.getByRole('button', { name: 'Add category' }).click();
   await screen.getByLabelText('Name').fill(name);
   if (colourName) {
     await screen
@@ -67,6 +68,7 @@ async function addRule(
   screen: Awaited<ReturnType<typeof render>>,
   options: { pattern: string; category: string },
 ) {
+  await screen.getByRole('button', { name: 'Add rule' }).click();
   await screen.getByLabelText('Pattern').fill(options.pattern);
   const categorySelect = screen.getByLabelText('Category');
   await categorySelect.selectOptions(categorySelect.getByRole('option', { name: options.category }));
@@ -89,7 +91,10 @@ test('a category added without picking a colour gets the first unused palette co
   await addCategory(screen, 'Groceries');
   await expect.element(screen.getByRole('cell', { name: /^Groceries$/ })).toBeVisible();
   await expect.element(screen.getByRole('cell', { name: /Blue/ })).toBeVisible();
+
+  await screen.getByRole('button', { name: 'Add category' }).click();
   await expect.element(screen.getByLabelText('Name')).toHaveValue('');
+  await screen.getByRole('button', { name: 'Cancel' }).click();
 
   await addCategory(screen, 'Snacks');
   await expect.element(screen.getByRole('cell', { name: /^Snacks$/ })).toBeVisible();
@@ -123,6 +128,7 @@ test('an empty name and a duplicate name are rejected with their messages', asyn
   await addCategory(screen, 'Groceries');
   await expect.element(screen.getByRole('cell', { name: /^Groceries$/ })).toBeVisible();
 
+  await screen.getByRole('button', { name: 'Add category' }).click();
   await screen.getByLabelText('Name').fill('');
   await screen.getByRole('button', { name: 'Save category' }).click();
   await expect.element(screen.getByText('Name is required.')).toBeVisible();
@@ -199,35 +205,40 @@ test('"Delete {name}" opens a modal confirmation; Escape leaves the category lis
   await expect.element(screen.getByRole('cell', { name: /^Groceries$/ })).toBeVisible();
 });
 
-test('typing into the Add form survives deleting an unrelated category', async () => {
+test('"Add category" opens a modal focused on Name; Escape closes it and no category was added', async () => {
   const screen = await render(CategoriesView);
 
-  await addCategory(screen, 'Groceries');
-  await addCategory(screen, 'Snacks');
+  await screen.getByRole('button', { name: 'Add category' }).click();
 
-  await screen.getByLabelText('Name').fill('Snac');
+  const dialog = screen.getByRole('dialog', { name: 'Add category' });
+  await expect.element(dialog).toBeVisible();
+  expect((dialog.element() as HTMLDialogElement).matches(':modal')).toBe(true);
+  await expect.element(screen.getByLabelText('Name')).toHaveFocus();
 
-  await screen.getByRole('button', { name: 'Delete Snacks' }).click();
-  await screen.getByRole('button', { name: /^Delete$/ }).click();
-  await expect.element(screen.getByRole('cell', { name: /^Snacks$/ })).not.toBeInTheDocument();
+  await userEvent.keyboard('{Escape}');
 
-  await expect.element(screen.getByLabelText('Name')).toHaveValue('Snac');
+  await expect.element(screen.getByRole('dialog', { name: 'Add category' })).not.toBeInTheDocument();
+  await expect.element(screen.getByLabelText('Name')).not.toBeInTheDocument();
+  await expect.element(tableRows(screen)).toHaveLength(2);
 });
 
-test('editing a category without saving survives deleting a different category', async () => {
+test('"Edit {name}" opens a modal titled Edit category, prefilled; Escape leaves the name unchanged', async () => {
   const screen = await render(CategoriesView);
-
   await addCategory(screen, 'Groceries');
-  await addCategory(screen, 'Snacks');
 
   await screen.getByRole('button', { name: 'Edit Groceries' }).click();
-  await screen.getByLabelText('Name').fill('Produce (draft)');
 
-  await screen.getByRole('button', { name: 'Delete Snacks' }).click();
-  await screen.getByRole('button', { name: /^Delete$/ }).click();
-  await expect.element(screen.getByRole('cell', { name: /^Snacks$/ })).not.toBeInTheDocument();
+  const dialog = screen.getByRole('dialog', { name: 'Edit category' });
+  await expect.element(dialog).toBeVisible();
+  expect((dialog.element() as HTMLDialogElement).matches(':modal')).toBe(true);
+  await expect.element(screen.getByLabelText('Name')).toHaveValue('Groceries');
 
-  await expect.element(screen.getByLabelText('Name')).toHaveValue('Produce (draft)');
+  await screen.getByLabelText('Name').fill('Produce');
+  await userEvent.keyboard('{Escape}');
+
+  await expect.element(screen.getByRole('dialog', { name: 'Edit category' })).not.toBeInTheDocument();
+  await expect.element(screen.getByRole('cell', { name: /^Groceries$/ })).toBeVisible();
+  await expect.element(screen.getByRole('cell', { name: /^Produce$/ })).not.toBeInTheDocument();
 });
 
 test('renaming a category in CategoriesView changes the name a transaction row shows', async () => {

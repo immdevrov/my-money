@@ -11,12 +11,20 @@
   const categories = liveQuery(async () => listCategories());
   const transactions = liveQuery(async () => listAll());
 
+  let formOpen = $state(false);
   let editingRule = $state<Rule | null>(null);
-  let addFormVersion = $state(0);
+  let formDialogEl = $state<HTMLDialogElement | null>(null);
 
   const ruleList = $derived($rules ?? []);
   const categoryList = $derived($categories ?? []);
   const matchCounts = $derived(winsByRule($transactions ?? []));
+
+  $effect(() => {
+    const dialogEl = formDialogEl;
+    if (!dialogEl) return;
+    if (formOpen && !dialogEl.open) dialogEl.showModal();
+    else if (!formOpen && dialogEl.open) dialogEl.close();
+  });
 
   function categoryName(id: string): string {
     return categoryList.find((category) => category.id === id)?.name ?? '';
@@ -26,22 +34,42 @@
     return `${rule.field} ${rule.match} ${rule.pattern}`;
   }
 
+  function openAdd() {
+    editingRule = null;
+    formOpen = true;
+  }
+
+  function openEdit(rule: Rule) {
+    editingRule = rule;
+    formOpen = true;
+  }
+
+  function closeForm() {
+    formOpen = false;
+    editingRule = null;
+  }
+
   async function onSaveRule(draft: RuleDraft) {
     if (editingRule) {
       await updateRule({ ...editingRule, ...draft });
-      editingRule = null;
     } else {
       await addRule(draft);
-      addFormVersion += 1;
     }
+    closeForm();
   }
 
-  function onEditCancel() {
-    editingRule = null;
+  function onFormDialogClose() {
+    if (formOpen) closeForm();
   }
 </script>
 
 <h1>Rules</h1>
+
+{#if categoryList.length > 0}
+  <p>
+    <button type="button" onclick={openAdd}>Add rule</button>
+  </p>
+{/if}
 
 {#if ruleList.length === 0}
   <p>No rules yet. Pick a category on a transaction to create one.</p>
@@ -69,7 +97,7 @@
           <td>{categoryName(rule.categoryId)}</td>
           <td>{matchCounts.get(rule.id) ?? 0}</td>
           <td>
-            <button type="button" onclick={() => (editingRule = rule)}>
+            <button type="button" onclick={() => openEdit(rule)}>
               Edit rule {description(rule)}
             </button>
             <button type="button" onclick={() => void deleteRule(rule.id)}>
@@ -96,14 +124,14 @@
   </table>
 {/if}
 
-{#if categoryList.length > 0}
-  <h2>{editingRule ? 'Edit rule' : 'Add rule'}</h2>
-  {#key editingRule ? editingRule.id : `new-${addFormVersion}`}
+<dialog bind:this={formDialogEl} aria-labelledby="rule-form-heading" onclose={onFormDialogClose}>
+  <h2 id="rule-form-heading">{editingRule ? 'Edit rule' : 'Add rule'}</h2>
+  {#if formOpen}
     <RuleForm
       rule={editingRule ?? undefined}
       categories={categoryList}
       onsave={onSaveRule}
-      oncancel={editingRule ? onEditCancel : undefined}
+      oncancel={closeForm}
     />
-  {/key}
-{/if}
+  {/if}
+</dialog>

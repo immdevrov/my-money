@@ -227,4 +227,17 @@ test('deleting a category cascades to its rule and manual assignments, leaving t
   screen = await render(TransactionsView);
   await expect.element(screen.getByText(/^rule$/)).not.toBeInTheDocument();
   await expect.element(screen.getByText(/^manual$/)).not.toBeInTheDocument();
+
+  for (const { date, counterparty } of [
+    { date: '2025-03-14', counterparty: 'Shop Alpha' },
+    { date: '2025-03-15', counterparty: 'Shop Alpha' },
+    { date: '2025-03-16', counterparty: 'Shop Alpha' },
+    { date: '2025-03-17', counterparty: 'Shop Beta' },
+  ]) {
+    const row = screen.getByRole('row', { name: new RegExp(date) });
+    const select = row.getByRole('combobox', { name: `Category for ${counterparty}` });
+    await expect
+      .element(select.getByRole('option', { name: /^Uncategorized$/, selected: true }))
+      .toBeInTheDocument();
+  }
 });

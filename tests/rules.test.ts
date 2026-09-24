@@ -121,20 +121,23 @@ test('a new rule is listed first and its matches take priority over an older rul
   await expect.element(rows.nth(3)).toHaveTextContent('counterparty');
 });
 
-test('moving a rule up changes its priority order and disables the buttons at the ends', async () => {
-  await importRows([SHOP_ALPHA_1, SHOP_BETA], OPTIONS);
+test('moving a rule down changes which rule wins and updates its match count', async () => {
+  await importRows([SHOP_ALPHA_1, SHOP_ALPHA_2, SHOP_ALPHA_3, SHOP_BETA], OPTIONS);
 
   let screen = await render(CategoriesView);
+  await addCategory(screen, 'Transfers out');
   await addCategory(screen, 'Groceries');
   cleanup();
 
   screen = await render(RulesView);
-  await addRule(screen, { pattern: 'Shop Alpha', category: 'Groceries' });
+  await addRule(screen, { pattern: 'Shop Alpha', category: 'Transfers out' });
   await addRule(screen, { field: 'mcc', pattern: '1001', category: 'Groceries' });
 
-  const rows = screen.getByRole('table', { name: 'Rules' }).getByRole('row');
+  let rows = screen.getByRole('table', { name: 'Rules' }).getByRole('row');
   await expect.element(rows.nth(1)).toHaveTextContent('mcc');
   await expect.element(rows.nth(2)).toHaveTextContent('counterparty');
+  await expect.element(rows.nth(1).getByRole('cell').nth(5)).toHaveTextContent('4');
+  await expect.element(rows.nth(2).getByRole('cell').nth(5)).toHaveTextContent('0');
 
   await expect
     .element(screen.getByRole('button', { name: /^Move rule mcc equals 1001 up$/ }))
@@ -142,16 +145,77 @@ test('moving a rule up changes its priority order and disables the buttons at th
   await expect
     .element(screen.getByRole('button', { name: /^Move rule counterparty equals Shop Alpha down$/ }))
     .toBeDisabled();
+  cleanup();
 
+  screen = await render(TransactionsView);
+  await expect
+    .element(screen.getByRole('option', { name: /^Groceries$/, selected: true }))
+    .toHaveLength(4);
+  await expect
+    .element(screen.getByRole('option', { name: /^Transfers out$/, selected: true }))
+    .toHaveLength(0);
+  cleanup();
+
+  screen = await render(RulesView);
+  rows = screen.getByRole('table', { name: 'Rules' }).getByRole('row');
   await screen.getByRole('button', { name: /^Move rule mcc equals 1001 down$/ }).click();
 
   await expect.element(rows.nth(1)).toHaveTextContent('counterparty');
   await expect.element(rows.nth(2)).toHaveTextContent('mcc');
+  await expect.element(rows.nth(1).getByRole('cell').nth(5)).toHaveTextContent('3');
+  await expect.element(rows.nth(2).getByRole('cell').nth(5)).toHaveTextContent('1');
+  cleanup();
 
-  await screen.getByRole('button', { name: /^Move rule mcc equals 1001 up$/ }).click();
+  screen = await render(TransactionsView);
+  await expect
+    .element(screen.getByRole('option', { name: /^Transfers out$/, selected: true }))
+    .toHaveLength(3);
+  await expect
+    .element(screen.getByRole('option', { name: /^Groceries$/, selected: true }))
+    .toHaveLength(1);
+});
+
+test("editing a rule's pattern keeps its position and re-evaluates its matches", async () => {
+  await importRows([SHOP_ALPHA_1, SHOP_ALPHA_2, SHOP_ALPHA_3, SHOP_BETA], OPTIONS);
+
+  let screen = await render(CategoriesView);
+  await addCategory(screen, 'Transfers out');
+  await addCategory(screen, 'Groceries');
+  cleanup();
+
+  screen = await render(RulesView);
+  await addRule(screen, { pattern: 'Shop Alpha', category: 'Transfers out' });
+  await addRule(screen, { field: 'mcc', pattern: '1001', category: 'Groceries' });
+
+  const rows = screen.getByRole('table', { name: 'Rules' }).getByRole('row');
+  await expect.element(rows.nth(1)).toHaveTextContent('mcc');
+  await expect.element(rows.nth(2)).toHaveTextContent('counterparty');
+
+  await screen.getByRole('button', { name: /^Edit rule counterparty equals Shop Alpha$/ }).click();
+  await expect.element(screen.getByLabelText('Pattern')).toHaveValue('Shop Alpha');
+  await screen.getByLabelText('Pattern').fill('Shop Beta');
+  await screen.getByRole('button', { name: 'Save rule' }).click();
 
   await expect.element(rows.nth(1)).toHaveTextContent('mcc');
   await expect.element(rows.nth(2)).toHaveTextContent('counterparty');
+  await expect.element(rows.nth(2)).toHaveTextContent('Shop Beta');
+  await expect.element(rows.nth(2).getByRole('cell').nth(5)).toHaveTextContent('0');
+
+  await screen.getByRole('button', { name: /^Move rule counterparty equals Shop Beta up$/ }).click();
+
+  await expect.element(rows.nth(1)).toHaveTextContent('counterparty');
+  await expect.element(rows.nth(2)).toHaveTextContent('mcc');
+  await expect.element(rows.nth(1).getByRole('cell').nth(5)).toHaveTextContent('1');
+  await expect.element(rows.nth(2).getByRole('cell').nth(5)).toHaveTextContent('3');
+  cleanup();
+
+  screen = await render(TransactionsView);
+  await expect
+    .element(screen.getByRole('option', { name: /^Transfers out$/, selected: true }))
+    .toHaveLength(1);
+  await expect
+    .element(screen.getByRole('option', { name: /^Groceries$/, selected: true }))
+    .toHaveLength(3);
 });
 
 test('editing a rule changes its category while keeping its position', async () => {

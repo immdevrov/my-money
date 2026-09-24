@@ -1,13 +1,8 @@
-import { insertRule, moveRule } from '../categorize/order';
+import { byPriorityThenId, insertRule, moveRule } from '../categorize/order';
 import type { Rule } from '../domain/types';
 import { db, openDatabase } from './database';
 
 export type RuleDraft = Pick<Rule, 'field' | 'match' | 'pattern' | 'categoryId'>;
-
-function byPriorityThenId(a: Rule, b: Rule): number {
-  if (a.priority !== b.priority) return a.priority - b.priority;
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
-}
 
 export async function listRules(): Promise<Rule[]> {
   await openDatabase();

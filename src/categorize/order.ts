@@ -1,6 +1,6 @@
 import type { Rule } from '../domain/types';
 
-function byPriorityThenId(a: Rule, b: Rule): number {
+export function byPriorityThenId(a: Rule, b: Rule): number {
   if (a.priority !== b.priority) return a.priority - b.priority;
   return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
 }

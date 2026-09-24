@@ -52,8 +52,19 @@
       baseline,
     });
 
-    return { period, options, spending: comparison.spending, income: comparison.income };
+    return {
+      period,
+      options,
+      spending: comparison.spending,
+      income: comparison.income,
+      missingRate: comparison.missingRate,
+    };
   });
+
+  function missingRateText(n: number): string {
+    const noun = n === 1 ? 'transaction' : 'transactions';
+    return `${n} ${noun} excluded from totals: no exchange rate.`;
+  }
 
   function signed(minor: number): string {
     return minor > 0 ? `+${formatMinor(minor)}` : formatMinor(minor);
@@ -122,6 +133,10 @@
       </select>
     </p>
   </div>
+
+  {#if view.missingRate > 0}
+    <p>{missingRateText(view.missingRate)}</p>
+  {/if}
 
   <div class="tabs" role="tablist" aria-label="Comparison">
     <button

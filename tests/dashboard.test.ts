@@ -78,6 +78,12 @@ const BOUNDARY_ROWS: StatementCell[][] = [
   ['10/03/2025', 'Grocer Mar', -80],
 ];
 
+const MISSING_RATE: StatementCell[][] = [
+  ...MONTHS.map((row) => [...row, null]),
+  ['12/03/2025', 'Payment - Amount: USD4.00; Merchant: Grocer Sigma, Online; MCC:1001', null, -4],
+  ['12/05/2025', 'Payment - Amount: USD9.00; Merchant: Grocer Sigma, Online; MCC:1001', null, -9],
+];
+
 function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
 }
@@ -126,6 +132,7 @@ test('defaults to the last complete month and compares it with the mean', SLOW, 
   await expect
     .element(screen.getByRole('table', { name: 'Spending comparison' }).getByText('Unused'))
     .not.toBeInTheDocument();
+  await expect.element(screen.getByText(/excluded from totals/)).not.toBeInTheDocument();
 });
 
 test('the current month can be compared but never feeds a baseline', SLOW, async () => {
@@ -326,6 +333,39 @@ test('a month-boundary card payment counts in its effective month', SLOW, async 
   await expectRow(screen, 1, ['Groceries', '0.00', '63.75', '-63.75', '-100%']);
   await expectRow(screen, 2, ['Total spending', '0.00', '63.75', '-63.75', '-100%']);
   await expect.element(spendingRows(screen).nth(3)).not.toBeInTheDocument();
+});
+
+test('rows without a rate are counted and excluded', SLOW, async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(MISSING_RATE, MIXED_OPTIONS);
+  await categorize(CATEGORIES);
+
+  const screen = await render(DashboardView);
+
+  await expect
+    .element(screen.getByText('2 transactions excluded from totals: no exchange rate.'))
+    .toBeVisible();
+  await expectRow(screen, 1, ['Groceries', '120.00', '57.50']);
+
+  const baseline = screen.getByLabelText('Baseline');
+  await baseline.selectOptions(baseline.getByRole('option', { name: 'Previous period' }));
+  await expect
+    .element(screen.getByText('1 transaction excluded from totals: no exchange rate.'))
+    .toBeVisible();
+});
+
+test('the count covers only the compared period when the baseline is insufficient', SLOW, async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(MISSING_RATE, MIXED_OPTIONS);
+  await categorize(CATEGORIES);
+
+  const screen = await render(DashboardView);
+  const period = screen.getByLabelText(/^Period$/);
+  await period.selectOptions(period.getByRole('option', { name: '2025-01' }));
+  const baseline = screen.getByLabelText('Baseline');
+  await baseline.selectOptions(baseline.getByRole('option', { name: 'Previous period' }));
+
+  await expect.element(screen.getByText(/excluded from totals/)).not.toBeInTheDocument();
 });
 
 test('an empty database shows the empty message', async () => {

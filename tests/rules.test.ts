@@ -290,9 +290,13 @@ test('"Add rule" opens a modal with focus inside it; Escape closes it and no rul
   await userEvent.keyboard('{Escape}');
 
   await expect.element(screen.getByRole('dialog', { name: 'Add rule' })).not.toBeInTheDocument();
+  await expect.element(screen.getByLabelText('Field')).not.toBeInTheDocument();
   await expect
     .element(screen.getByText('No rules yet. Pick a category on a transaction to create one.'))
     .toBeVisible();
+
+  await screen.getByRole('button', { name: 'Add rule' }).click();
+  await expect.element(screen.getByLabelText('Pattern')).toHaveValue('');
 });
 
 test('an invalid regex keeps the Add rule modal open and shows its message', async () => {

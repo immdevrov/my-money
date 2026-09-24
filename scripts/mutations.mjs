@@ -414,4 +414,6 @@ export const MUTATIONS = [
   }`,
     `  function onFormDialogClose() {
   }`],
+  ['M133 rule form dialog Escape resets state', RULEVIEW,
+    `if (formOpen) closeForm();`, `if (!formOpen) closeForm();`],
 ];

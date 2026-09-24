@@ -42,7 +42,7 @@ async function expectTransactionsFilters(screen: Screen, period: string, categor
 test('a category row opens Transactions filtered to it, and Back restores the Dashboard', SLOW, async () => {
   const screen = await openDashboard();
   await choose(screen, /^Period$/, '2025-03');
-  await choose(screen, 'Baseline', 'Median');
+  await choose(screen, /^Baseline$/, 'Median');
 
   await screen.getByRole('link', { name: /^Groceries$/ }).click();
 
@@ -56,7 +56,33 @@ test('a category row opens Transactions filtered to it, and Back restores the Da
   await expect
     .element(screen.getByRole('combobox', { name: /^Period$/ }))
     .toHaveDisplayValue('2025-03');
-  await expect.element(screen.getByRole('combobox', { name: 'Baseline' })).toHaveDisplayValue('Median');
+  await expect
+    .element(screen.getByRole('combobox', { name: /^Baseline$/ }))
+    .toHaveDisplayValue('Median');
+});
+
+test('a quarter drill-down restores the period type on Back', SLOW, async () => {
+  const screen = await openDashboard();
+  await choose(screen, /^Period type$/, 'Quarter');
+  await choose(screen, /^Period$/, '2025 Q1');
+
+  await screen.getByRole('link', { name: /^Groceries$/ }).click();
+
+  await expectTransactionsFilters(screen, '2025 Q1', 'Groceries');
+  await expect.element(transactionRows(screen)).toHaveLength(4);
+  await expect.element(screen.getByRole('cell', { name: /^Grocer Jan$/ })).toBeVisible();
+  await expect.element(screen.getByRole('cell', { name: /^Grocer Feb$/ })).toBeVisible();
+  await expect.element(screen.getByRole('cell', { name: /^Grocer Mar$/ })).toBeVisible();
+
+  history.back();
+
+  await expect.element(screen.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+  await expect
+    .element(screen.getByRole('combobox', { name: /^Period type$/ }))
+    .toHaveDisplayValue('Quarter');
+  await expect
+    .element(screen.getByRole('combobox', { name: /^Period$/ }))
+    .toHaveDisplayValue('2025 Q1');
 });
 
 test('uncategorized drills to both signs, and Back restores the Income tab', SLOW, async () => {

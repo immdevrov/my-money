@@ -188,12 +188,20 @@ test('filters survive a remount through the URL', async () => {
 
   const period = first.getByRole('combobox', { name: 'Period' });
   await period.selectOptions(period.getByRole('option', { name: /^2025-02$/ }));
+  const category = first.getByRole('combobox', { name: /^Category$/ });
+  await category.selectOptions(category.getByRole('option', { name: /^Uncategorized$/ }));
+  const kind = first.getByRole('combobox', { name: 'Kind' });
+  await kind.selectOptions(kind.getByRole('option', { name: /^other$/ }));
   await first.getByRole('searchbox', { name: 'Search' }).fill('beta');
   await expect.element(bodyRows(first)).toHaveLength(2);
 
   const screen = await remount(TransactionsView);
 
   await expect.element(screen.getByRole('combobox', { name: 'Period' })).toHaveDisplayValue('2025-02');
+  await expect
+    .element(screen.getByRole('combobox', { name: /^Category$/ }))
+    .toHaveDisplayValue('Uncategorized');
+  await expect.element(screen.getByRole('combobox', { name: 'Kind' })).toHaveDisplayValue('other');
   await expect.element(screen.getByRole('searchbox', { name: 'Search' })).toHaveValue('beta');
   await expect.element(bodyRows(screen)).toHaveLength(2);
   await expect.element(screen.getByRole('cell', { name: /^Beta payment$/ })).toBeVisible();

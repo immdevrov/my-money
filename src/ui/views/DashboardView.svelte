@@ -53,11 +53,6 @@
   );
   const activeTab = $derived(TABS.includes(query.tab) ? (query.tab as Tab) : 'spending');
 
-  function update(changes: Partial<Record<QueryKey, string>>) {
-    query = { ...query, ...changes };
-    replaceQuery({ type: periodType, period: query.period, baseline, tab: activeTab });
-  }
-
   let spendingTabEl = $state<HTMLButtonElement | null>(null);
   let incomeTabEl = $state<HTMLButtonElement | null>(null);
 
@@ -92,6 +87,16 @@
       missingRate: comparison.missingRate,
     };
   });
+
+  function update(changes: Partial<Record<QueryKey, string>>) {
+    query = { ...query, ...changes };
+    replaceQuery({
+      type: periodType,
+      period: view?.period ?? query.period,
+      baseline,
+      tab: activeTab,
+    });
+  }
 
   function missingRateText(n: number): string {
     const noun = n === 1 ? 'transaction' : 'transactions';

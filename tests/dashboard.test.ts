@@ -48,7 +48,10 @@ const MISSING_RATE: StatementCell[][] = [
   ...MONTHS.map((row) => [...row, null]),
   ['12/03/2025', 'Payment - Amount: USD4.00; Merchant: Grocer Sigma, Online; MCC:1001', null, -4],
   ['12/05/2025', 'Payment - Amount: USD9.00; Merchant: Grocer Sigma, Online; MCC:1001', null, -9],
+  ['12/05/2025', 'Payment - Amount: USD6.00; Merchant: Hidden Sigma, Online; MCC:1001', null, -6],
 ];
+
+const MISSING_RATE_CATEGORIES = [...CATEGORIES, { name: 'Hidden', type: 'ignore' as const, contains: 'Hidden' }];
 
 function exactly(text: string): RegExp {
   return new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
@@ -137,7 +140,7 @@ test('compares months against the median and previous baselines', SLOW, async ()
   await categorize(CATEGORIES);
 
   const screen = await render(DashboardView);
-  const baseline = screen.getByLabelText('Baseline');
+  const baseline = screen.getByLabelText(/^Baseline$/);
 
   await baseline.selectOptions(baseline.getByRole('option', { name: 'Median' }));
   await expectRow(screen, 1, ['Groceries', '120.00', '65.00', '+55.00', '+85%']);
@@ -158,7 +161,7 @@ test('previous is insufficient for the first period in the span', SLOW, async ()
   const screen = await render(DashboardView);
   const period = screen.getByLabelText(/^Period$/);
   await period.selectOptions(period.getByRole('option', { name: '2025-01' }));
-  const baseline = screen.getByLabelText('Baseline');
+  const baseline = screen.getByLabelText(/^Baseline$/);
   await baseline.selectOptions(baseline.getByRole('option', { name: 'Previous period' }));
 
   await expectRow(screen, 1, ['Groceries', '100.00', 'insufficient data', '', '']);
@@ -170,7 +173,7 @@ test('resets to the default quarter and compares against each baseline', async (
   await categorize(GROCERIES);
 
   const screen = await render(DashboardView);
-  const periodType = screen.getByLabelText('Period type');
+  const periodType = screen.getByLabelText(/^Period type$/);
   await periodType.selectOptions(periodType.getByRole('option', { name: 'Quarter' }));
 
   const period = screen.getByLabelText(/^Period$/);
@@ -179,7 +182,7 @@ test('resets to the default quarter and compares against each baseline', async (
   await expectRow(screen, 1, ['Groceries', '40.00', '52.50', '-12.50', '-24%']);
   await expectRow(screen, 2, ['Total spending', '40.00', '52.50', '-12.50', '-24%']);
 
-  const baseline = screen.getByLabelText('Baseline');
+  const baseline = screen.getByLabelText(/^Baseline$/);
   await baseline.selectOptions(baseline.getByRole('option', { name: 'Median' }));
   await expectRow(screen, 1, ['Groceries', '40.00', '45.00', '-5.00', '-11%']);
   await expectRow(screen, 2, ['Total spending', '40.00', '45.00', '-5.00', '-11%']);
@@ -195,7 +198,7 @@ test('resets to the default year and compares against each baseline', async () =
   await categorize(GROCERIES);
 
   const screen = await render(DashboardView);
-  const periodType = screen.getByLabelText('Period type');
+  const periodType = screen.getByLabelText(/^Period type$/);
   await periodType.selectOptions(periodType.getByRole('option', { name: 'Year' }));
 
   const period = screen.getByLabelText(/^Period$/);
@@ -204,7 +207,7 @@ test('resets to the default year and compares against each baseline', async () =
   await expectRow(screen, 1, ['Groceries', '300.00', '116.67', '+183.33', '+157%']);
   await expectRow(screen, 2, ['Total spending', '300.00', '116.67', '+183.33', '+157%']);
 
-  const baseline = screen.getByLabelText('Baseline');
+  const baseline = screen.getByLabelText(/^Baseline$/);
   await baseline.selectOptions(baseline.getByRole('option', { name: 'Median' }));
   await expectRow(screen, 1, ['Groceries', '300.00', '100.00', '+200.00', '+200%']);
   await expectRow(screen, 2, ['Total spending', '300.00', '100.00', '+200.00', '+200%']);
@@ -304,7 +307,7 @@ test('a month-boundary card payment counts in its effective month', SLOW, async 
 test('rows without a rate are counted and excluded', SLOW, async () => {
   freezeDate('2025-06-15T12:00:00');
   await importRows(MISSING_RATE, MIXED_OPTIONS);
-  await categorize(CATEGORIES);
+  await categorize(MISSING_RATE_CATEGORIES);
 
   const screen = await render(DashboardView);
 
@@ -312,8 +315,11 @@ test('rows without a rate are counted and excluded', SLOW, async () => {
     .element(screen.getByText('2 transactions excluded from totals: no exchange rate.'))
     .toBeVisible();
   await expectRow(screen, 1, ['Groceries', '120.00', '57.50']);
+  await expect
+    .element(screen.getByRole('table', { name: 'Spending comparison' }).getByText('Hidden'))
+    .not.toBeInTheDocument();
 
-  const baseline = screen.getByLabelText('Baseline');
+  const baseline = screen.getByLabelText(/^Baseline$/);
   await baseline.selectOptions(baseline.getByRole('option', { name: 'Previous period' }));
   await expect
     .element(screen.getByText('1 transaction excluded from totals: no exchange rate.'))
@@ -328,7 +334,7 @@ test('the count covers only the compared period when the baseline is insufficien
   const screen = await render(DashboardView);
   const period = screen.getByLabelText(/^Period$/);
   await period.selectOptions(period.getByRole('option', { name: '2025-01' }));
-  const baseline = screen.getByLabelText('Baseline');
+  const baseline = screen.getByLabelText(/^Baseline$/);
   await baseline.selectOptions(baseline.getByRole('option', { name: 'Previous period' }));
 
   await expect.element(screen.getByText(/excluded from totals/)).not.toBeInTheDocument();

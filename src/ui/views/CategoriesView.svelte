@@ -75,18 +75,22 @@
   </tbody>
 </table>
 
-<h2>{editing ? 'Edit category' : 'Add category'}</h2>
-{#key editing?.id ?? 'new'}
-  <CategoryForm
-    category={editing ?? undefined}
-    categories={$categories ?? []}
-    onsave={onSave}
-    oncancel={editing ? onEditCancel : undefined}
-  />
-{/key}
+{#if $categories !== undefined}
+  {@const categoryList = $categories}
+  <h2>{editing ? 'Edit category' : 'Add category'}</h2>
+  {#key `${editing?.id ?? 'new'}-${categoryList.length}`}
+    <CategoryForm
+      category={editing ?? undefined}
+      categories={categoryList}
+      onsave={onSave}
+      oncancel={editing ? onEditCancel : undefined}
+    />
+  {/key}
+{/if}
 
 {#if deleteTarget}
-  <dialog open>
+  <dialog open aria-labelledby="delete-category-heading">
+    <h2 id="delete-category-heading">Delete category</h2>
     <p>{impactText(deleteTarget.name, deleteCounts)}</p>
     <button type="button" onclick={confirmDelete}>Delete</button>
     <button type="button" onclick={cancelDelete}>Cancel</button>

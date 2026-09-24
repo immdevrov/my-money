@@ -370,13 +370,15 @@
 {/if}
 
 {#if newCategoryRow}
-  <dialog open>
+  <dialog open aria-labelledby="new-category-heading">
+    <h2 id="new-category-heading">New category</h2>
     <CategoryForm categories={$categories ?? []} onsave={saveNewCategory} oncancel={cancelNewCategory} />
   </dialog>
 {/if}
 
 {#if editingRuleRow}
-  <dialog open>
+  <dialog open aria-labelledby="edit-rule-heading">
+    <h2 id="edit-rule-heading">Edit rule</h2>
     <RuleForm
       categories={$categories ?? []}
       basedOn={basedOnOptions(editingRuleRow)}

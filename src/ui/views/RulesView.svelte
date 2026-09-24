@@ -12,6 +12,7 @@
   const transactions = liveQuery(async () => listAll());
 
   let editingRule = $state<Rule | null>(null);
+  let addFormVersion = $state(0);
 
   const ruleList = $derived($rules ?? []);
   const categoryList = $derived($categories ?? []);
@@ -31,6 +32,7 @@
       editingRule = null;
     } else {
       await addRule(draft);
+      addFormVersion += 1;
     }
   }
 
@@ -96,7 +98,7 @@
 
 {#if categoryList.length > 0}
   <h2>{editingRule ? 'Edit rule' : 'Add rule'}</h2>
-  {#key editingRule?.id ?? 'new'}
+  {#key editingRule ? editingRule.id : `new-${addFormVersion}`}
     <RuleForm
       rule={editingRule ?? undefined}
       categories={categoryList}

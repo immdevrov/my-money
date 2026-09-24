@@ -78,6 +78,7 @@ test('adding a counterparty rule categorizes every matching row and shows its ma
 
   screen = await render(RulesView);
   await addRule(screen, { pattern: 'Shop Alpha', category: 'Groceries' });
+  await expect.element(screen.getByLabelText('Pattern')).toHaveValue('');
 
   const rows = screen.getByRole('table', { name: 'Rules' }).getByRole('row');
   await expect.element(rows).toHaveLength(2);

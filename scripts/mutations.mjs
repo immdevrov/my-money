@@ -211,8 +211,10 @@ export const MUTATIONS = [
   ['M74 edit always makes a new id', CATFORM,
     `onsave({ id: category?.id ?? crypto.randomUUID(), name: trimmed, type, color });`,
     `onsave({ id: crypto.randomUUID(), name: trimmed, type, color });`],
-  ['M75 seeding fires on every open', DATABASE,
-    `db.on('populate', (transaction) => {`, `db.on('ready', (transaction) => {`],
+  ['M75 seeding runs only on populate/upgrade, never on open', DATABASE,
+    `    await db.open();`,
+    `    await db.open();
+    await db.categories.put(CURRENCY_CONVERSION);`],
   ['M76 zero-count pluralization boundary', CATVIEW,
     `counts.rules === 1 ? '1 rule' :`, `counts.rules === 0 ? '1 rule' :`],
   ['M78 cascade deletes rules', CATDB,
@@ -381,4 +383,7 @@ export const MUTATIONS = [
   ['M123 uncategorized placeholder is disabled', TXVIEW,
     `<option value={UNCATEGORIZED} disabled selected>Uncategorized</option>`,
     `<option value={UNCATEGORIZED} selected>Uncategorized</option>`],
+  ['M124 currency-conversion type stays disabled', CATFORM,
+    `const typeDisabled = untrack(() => category?.id === CURRENCY_CONVERSION_ID);`,
+    `const typeDisabled = untrack(() => category?.id !== CURRENCY_CONVERSION_ID);`],
 ];

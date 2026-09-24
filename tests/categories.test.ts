@@ -85,14 +85,23 @@ test('adding a category lists it with its type and colour', async () => {
 test('a category added without picking a colour gets the first unused palette colour', async () => {
   const screen = await render(CategoriesView);
 
-  await expect.element(screen.getByRole('cell', { name: /^Currency conversion$/ })).toBeVisible();
-  await screen.getByRole('button', { name: 'Edit Currency conversion' }).click();
-  await screen.getByRole('button', { name: 'Cancel' }).click();
-
   await addCategory(screen, 'Groceries');
-
   await expect.element(screen.getByRole('cell', { name: /^Groceries$/ })).toBeVisible();
   await expect.element(screen.getByRole('cell', { name: /Blue/ })).toBeVisible();
+  await expect.element(screen.getByLabelText('Name')).toHaveValue('');
+
+  await addCategory(screen, 'Snacks');
+  await expect.element(screen.getByRole('cell', { name: /^Snacks$/ })).toBeVisible();
+  const snacksRow = screen.getByRole('row', { name: /Snacks/ });
+  await expect.element(snacksRow.getByRole('cell', { name: /Teal/ })).toBeVisible();
+});
+
+test("editing Currency conversion disables the Type select", async () => {
+  const screen = await render(CategoriesView);
+
+  await screen.getByRole('button', { name: 'Edit Currency conversion' }).click();
+
+  await expect.element(screen.getByLabelText('Type')).toBeDisabled();
 });
 
 test('a fresh database seeds exactly one category, Currency conversion', async () => {

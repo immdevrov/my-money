@@ -179,8 +179,6 @@ Specified in `docs/specs/phase-4-categorization.md`. In short:
 - Only the manual choice is stored. System and rule assignments are derived on every read, so a rule change needs no re-apply pass.
 - No rules are seeded. The only seeded category is Currency conversion.
 
-No rules are seeded. The user creates every rule.
-
 ## Period semantics
 - Periods are calendar month, quarter, and year, bucketed by `effectiveDate`.
 - Only complete periods count toward baselines. The current incomplete period is excluded.

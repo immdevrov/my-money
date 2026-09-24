@@ -180,14 +180,10 @@ Specified in `docs/specs/phase-4-categorization.md`. In short:
 - No rules are seeded. The only seeded category is Currency conversion.
 
 ## Period semantics
-- Periods are calendar month, quarter, and year, bucketed by `effectiveDate`.
-- Only complete periods count toward baselines. The current incomplete period is excluded.
-- Baseline options: mean, median, previous period.
-- Mean and median are computed:
-  - Over all complete periods in the data, excluding the compared period.
-  - Per category, counting 0 for periods where the category has no transactions.
-- Spending and income totals exclude categories of type `transfer` and `ignore`.
-- A baseline requires at least 3 complete periods; otherwise display "insufficient data".
+Specified in `docs/specs/phase-5-dashboard.md`. In short:
+- Periods are calendar month, quarter, and year, bucketed by `effectiveDate`. The span runs from the first data period to the current one, and empty periods count as 0.
+- Baselines (mean, median, previous period) draw on every complete period except the compared one. The current incomplete period is never in a baseline. Fewer than 3 complete periods gives "insufficient data".
+- Spending and income totals exclude categories of type `transfer` and `ignore`. A category's type decides whether it counts as spending or income. Uncategorized rows go by sign.
 - Comparison output, per category and in total: current, baseline, delta, delta %.
 
 ## Views
@@ -195,15 +191,15 @@ Specified in `docs/specs/phase-4-categorization.md`. In short:
 2. **Transactions:**
    - Columns: effective date, posting date, kind, counterparty, amount in original currency, amount in GEL (with missing-rate marker), category, pair status for conversion rows.
    - Sort.
-   - Filters: period, category, kind, uncategorized, text.
+   - Filters: period, category, kind, uncategorized, text. From phase 5 they are held in the URL's hash query.
    - Inline category edit.
 
    The view is built up across phases, because a column cannot be rendered before the data behind it exists. Phase 2 ships effective date, posting date, kind, counterparty, amount in original currency, and sorting. Phase 3 adds amount in GEL and pair status. Phase 4 adds the category column, inline category edit, and every filter — filters are deferred whole rather than split, so the filter bar is built once against a complete set.
 3. **Rules:** CRUD, reorder priority, match count per rule.
 4. **Categories:** CRUD with type and color.
-5. **Dashboard:**
-   - Period type and period picker, plus baseline picker.
-   - Comparison table. Clicking a row opens Transactions filtered to that category and the selected period.
+5. **Dashboard** (phase 5 in `docs/specs/phase-5-dashboard.md`):
+   - Period type, period and baseline pickers, held in the URL.
+   - Spending and Income tabs, each with a comparison table. Clicking a row opens Transactions filtered to that category and the selected period, through the URL.
    - Count of transactions excluded from totals for missing rates.
    - Grouped bar chart per category (current vs baseline). Clicking a bar uses the same drill-down handler as the table row.
    - Line chart of monthly income and expense over the full history.
@@ -254,15 +250,7 @@ Phase 3, pairing and rates:
 
 Phase 4, categorization: see `docs/specs/phase-4-categorization.md`.
 
-Phase 5, comparison:
-- With `freezeDate`, comparison table values for every period type and baseline match the expected values.
-- The current incomplete period is excluded from baselines.
-- Fewer than 3 complete periods shows "insufficient data".
-- The mean counts zero for months where a category is absent.
-- Transfer and ignore categories are excluded from totals.
-- A month-boundary card payment is counted in its effective month.
-- The missing-rate exclusion count is shown.
-- Clicking a comparison table row opens Transactions filtered to that category and period.
+Phase 5, comparison: see `docs/specs/phase-5-dashboard.md`.
 
 Phase 6, charts:
 - Each chart's data table matches the comparison table and the monthly totals.

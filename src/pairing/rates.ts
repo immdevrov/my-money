@@ -12,14 +12,35 @@ export function buildRateTable(rates: Rate[]): Rate[] {
   );
 }
 
-export function rateFor(table: Rate[], currency: string, onOrBefore: string): Rate | null {
-  let found: Rate | null = null;
+const MS_PER_DAY = 86_400_000;
+
+function daysSinceEpoch(date: string): number {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7));
+  const day = Number(date.slice(8, 10));
+  return Date.UTC(year, month - 1, day) / MS_PER_DAY;
+}
+
+export function rateFor(table: Rate[], currency: string, date: string): Rate | null {
+  const month = date.slice(0, 7);
+  let before: Rate | null = null;
+  let after: Rate | null = null;
 
   for (const rate of table) {
     if (rate.currency !== currency) continue;
-    if (rate.date > onOrBefore) break;
-    found = rate;
+    if (rate.date <= date) {
+      before = rate;
+    }
+    if (rate.date > date && after === null && rate.date.slice(0, 7) === month) {
+      after = rate;
+    }
   }
 
-  return found;
+  if (before === null) return after;
+  if (after === null) return before;
+
+  const beforeDistance = daysSinceEpoch(date) - daysSinceEpoch(before.date);
+  const afterDistance = daysSinceEpoch(after.date) - daysSinceEpoch(date);
+
+  return afterDistance < beforeDistance ? after : before;
 }

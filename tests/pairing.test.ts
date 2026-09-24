@@ -95,6 +95,54 @@ const STREAM_LATE: StatementCell[] = [
   null,
 ];
 
+const EARLY_CONVERSION_GEL: StatementCell[] = [
+  '02/02/2025',
+  'Income - Amount GEL100.00; Foreign Exchange. FX Rate:2.0.',
+  100,
+  null,
+  null,
+];
+
+const EARLY_CONVERSION_USD: StatementCell[] = [
+  '02/02/2025',
+  'Payment - Amount USD50.00; Foreign Exchange. FX Rate:2.0',
+  null,
+  -50,
+  null,
+];
+
+const STREAM_JAN: StatementCell[] = [
+  '28/01/2025',
+  'Payment - Amount: USD20.00; Merchant: Stream Beta, Online; MCC:1005',
+  null,
+  -20,
+  null,
+];
+
+const STREAM_CLOSER_EARLIER: StatementCell[] = [
+  '04/02/2025',
+  'Payment - Amount: USD20.00; Merchant: Stream Beta, Online; MCC:1005',
+  null,
+  -20,
+  null,
+];
+
+const STREAM_TIE: StatementCell[] = [
+  '06/02/2025',
+  'Payment - Amount: USD20.00; Merchant: Stream Beta, Online; MCC:1005',
+  null,
+  -20,
+  null,
+];
+
+const STREAM_CLOSER_LATER: StatementCell[] = [
+  '08/02/2025',
+  'Payment - Amount: USD20.00; Merchant: Stream Beta, Online; MCC:1005',
+  null,
+  -20,
+  null,
+];
+
 async function uploadOnly(rows: StatementCell[][]) {
   const screen = await render(ImportView);
   await screen.getByLabelText('Statement file').upload(await makeStatement(rows, OPTIONS));
@@ -179,11 +227,50 @@ test('a converted amount is rounded half-up, not truncated', async () => {
   await expect.element(screen.getByRole('cell', { name: /^-9\.11$/ })).toBeVisible();
 });
 
-test('a rate is not applied to a transaction dated before it', async () => {
-  await importRows([STREAM_BEFORE, CONVERSION_GEL, CONVERSION_USD], OPTIONS);
+test('a later rate is not applied across a month boundary', async () => {
+  await importRows([STREAM_JAN, CONVERSION_GEL, CONVERSION_USD], OPTIONS);
   const screen = await render(TransactionsView);
 
   await expect.element(screen.getByRole('cell', { name: /^no rate$/ })).toHaveLength(1);
+});
+
+test('with no earlier rate, a later rate in the same month applies', async () => {
+  await importRows([STREAM_BEFORE, CONVERSION_GEL, CONVERSION_USD], OPTIONS);
+  const screen = await render(TransactionsView);
+
+  await expect.element(screen.getByRole('cell', { name: /^-54\.70$/ })).toBeVisible();
+});
+
+test('a closer later rate beats an earlier one', async () => {
+  await importRows(
+    [STREAM_CLOSER_LATER, EARLY_CONVERSION_GEL, EARLY_CONVERSION_USD, CONVERSION_GEL, CONVERSION_USD],
+    OPTIONS,
+  );
+  const screen = await render(TransactionsView);
+
+  await expect.element(screen.getByRole('cell', { name: /^-54\.70$/ })).toBeVisible();
+  await expect.element(screen.getByRole('cell', { name: /^-40\.00$/ })).not.toBeInTheDocument();
+});
+
+test('an earlier rate wins a tie', async () => {
+  await importRows(
+    [STREAM_TIE, EARLY_CONVERSION_GEL, EARLY_CONVERSION_USD, CONVERSION_GEL, CONVERSION_USD],
+    OPTIONS,
+  );
+  const screen = await render(TransactionsView);
+
+  await expect.element(screen.getByRole('cell', { name: /^-40\.00$/ })).toBeVisible();
+  await expect.element(screen.getByRole('cell', { name: /^-54\.70$/ })).not.toBeInTheDocument();
+});
+
+test('a closer earlier rate beats a later one', async () => {
+  await importRows(
+    [STREAM_CLOSER_EARLIER, EARLY_CONVERSION_GEL, EARLY_CONVERSION_USD, CONVERSION_GEL, CONVERSION_USD],
+    OPTIONS,
+  );
+  const screen = await render(TransactionsView);
+
+  await expect.element(screen.getByRole('cell', { name: /^-40\.00$/ })).toBeVisible();
 });
 
 test('a GEL transaction needs no rate', async () => {

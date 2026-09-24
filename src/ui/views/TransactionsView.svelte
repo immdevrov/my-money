@@ -5,14 +5,12 @@
   import { listCategories, saveCategory } from '../../db/categories';
   import { addRuleFromTransaction, listRules, type RuleDraft } from '../../db/rules';
   import { clearManualCategory, listAll, setManualCategory } from '../../db/transactions';
-  import { toGelMinor } from '../../aggregate/convert';
+  import { gelAmount, rateTableFrom } from '../../aggregate/gel';
   import { inPeriod, periodOptions } from '../../aggregate/period';
   import { formatMinor } from '../../import/amount';
-  import { buildRateTable, rateFor } from '../../pairing/rates';
   import CategoryForm from '../components/CategoryForm.svelte';
   import RuleForm from '../components/RuleForm.svelte';
 
-  const BASE_CURRENCY = 'GEL';
   const MISSING_RATE = 'no rate';
   const UNCATEGORIZED = 'uncategorized';
   const NEW_CATEGORY = 'new-category';
@@ -99,25 +97,11 @@
     return `${formatMinor(row.amountMinor)} ${row.currency}`;
   }
 
-  const rateTable = $derived(
-    buildRateTable(
-      sorted
-        .filter((row) => row.paired && row.currency !== BASE_CURRENCY)
-        .flatMap((row) =>
-          row.conversionRateScaled === null
-            ? []
-            : [{ date: row.postingDate, currency: row.currency, rateScaled: row.conversionRateScaled }],
-        ),
-    ),
-  );
+  const rateTable = $derived(rateTableFrom(sorted));
 
   function inGel(row: Transaction): string {
-    if (row.currency === BASE_CURRENCY) return formatMinor(row.amountMinor);
-
-    const rate = rateFor(rateTable, row.currency, row.effectiveDate);
-    if (rate === null) return MISSING_RATE;
-
-    return formatMinor(toGelMinor(row.amountMinor, rate.rateScaled));
+    const amount = gelAmount(row, rateTable);
+    return amount === null ? MISSING_RATE : formatMinor(amount);
   }
 
   function pairStatus(row: Transaction): string {

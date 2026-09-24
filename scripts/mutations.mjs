@@ -21,6 +21,7 @@ const TXVIEW = 'src/ui/views/TransactionsView.svelte';
 const PAIR = 'src/pairing/pairConversions.ts';
 const RATES = 'src/pairing/rates.ts';
 const CONVERT = 'src/aggregate/convert.ts';
+const GEL = 'src/aggregate/gel.ts';
 const CATVIEW = 'src/ui/views/CategoriesView.svelte';
 const CATFORM = 'src/ui/components/CategoryForm.svelte';
 const SEED = 'src/categorize/seed.ts';
@@ -169,7 +170,7 @@ export const MUTATIONS = [
   ['M56 base side of a pair is GEL', PAIR,
     "const BASE_CURRENCY = 'GEL';", "const BASE_CURRENCY = 'USD';"],
   ['M57 rate applies on or before the date', RATES,
-    'if (rate.date > onOrBefore) break;', 'if (rate.date >= onOrBefore) break;'],
+    'if (rate.date <= date) {', 'if (rate.date < date) {'],
   ['M58 rate lookup filters by currency', RATES,
     'if (rate.currency !== currency) continue;', 'if (rate.currency === currency) continue;'],
   ['M59 rate table is oldest first', RATES,
@@ -178,9 +179,9 @@ export const MUTATIONS = [
     '? whole + 1 : whole;', '? whole : whole;'],
   ['M61 conversion keeps the sign', CONVERT,
     'return negative ? -rounded : rounded;', 'return negative ? rounded : rounded;'],
-  ['M62 GEL rows need no rate', TXVIEW,
-    'if (row.currency === BASE_CURRENCY) return formatMinor(row.amountMinor);',
-    'if (row.currency !== BASE_CURRENCY) return formatMinor(row.amountMinor);'],
+  ['M62 GEL rows need no rate', GEL,
+    'if (row.currency === BASE_CURRENCY) return row.amountMinor;',
+    'if (row.currency !== BASE_CURRENCY) return row.amountMinor;'],
   ['M63 missing rate is marked', TXVIEW,
     "const MISSING_RATE = 'no rate';", "const MISSING_RATE = '';"],
   ['M64 pair status is for conversions only', TXVIEW,
@@ -188,7 +189,7 @@ export const MUTATIONS = [
   ['M65 a pair id means paired', TXVIEW,
     "return row.paired ? 'paired' : 'unpaired';",
     "return row.paired ? 'unpaired' : 'paired';"],
-  ['M66 rate table uses paired rows', TXVIEW,
+  ['M66 rate table uses paired rows', GEL,
     'row.paired && row.currency !== BASE_CURRENCY',
     '!row.paired && row.currency !== BASE_CURRENCY'],
   ['M67 any unpaired conversion warns', IMPORTVIEW,
@@ -416,4 +417,12 @@ export const MUTATIONS = [
   }`],
   ['M133 rule form dialog Escape resets state', RULEVIEW,
     `if (formOpen) closeForm();`, `if (!formOpen) closeForm();`],
+  ['M134 no earlier rate falls back to a later one', RATES,
+    `if (before === null) return after;`, `if (before === null) return null;`],
+  ['M135 a later rate is confined to the same month', RATES,
+    `rate.date.slice(0, 7) === month`, `rate.date.slice(0, 7) !== month`],
+  ['M136 the nearer candidate wins', RATES,
+    `afterDistance < beforeDistance ? after : before`, `afterDistance > beforeDistance ? after : before`],
+  ['M137 a tie goes to the earlier rate', RATES,
+    `afterDistance < beforeDistance`, `afterDistance <= beforeDistance`],
 ];

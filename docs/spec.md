@@ -182,7 +182,7 @@ Specified in `docs/specs/phase-4-categorization.md`. In short:
 ## Period semantics
 Specified in `docs/specs/phase-5-dashboard.md`. In short:
 - Periods are calendar month, quarter, and year, bucketed by `effectiveDate`. The span runs from the first data period to the current one, and empty periods count as 0.
-- Baselines (mean, median, previous period) draw on every complete period except the compared one. The current incomplete period is never in a baseline. Fewer than 3 complete periods gives "insufficient data".
+- The Dashboard shows three baselines side by side: mean, median and previous period. They draw on every complete period except the compared one, and the current incomplete period is never in a baseline. Fewer than 3 complete periods gives "insufficient data". The median leaves out zero periods and needs 3 non-zero ones.
 - Spending and income totals exclude categories of type `transfer` and `ignore`. A category's type decides whether it counts as spending or income. Uncategorized rows go by sign.
 - Comparison output, per category and in total: current, baseline, delta, delta %.
 
@@ -198,7 +198,7 @@ Specified in `docs/specs/phase-5-dashboard.md`. In short:
 3. **Rules:** CRUD, reorder priority, match count per rule.
 4. **Categories:** CRUD with type and color.
 5. **Dashboard** (phase 5 in `docs/specs/phase-5-dashboard.md`):
-   - Period type, period and baseline pickers, held in the URL.
+   - Period type and period pickers, held in the URL. Mean, median and previous-period baselines side by side.
    - Spending and Income tabs, each with a comparison table. Clicking a row opens Transactions filtered to that category and the selected period, through the URL.
    - Count of transactions excluded from totals for missing rates.
    - Grouped bar chart per category (current vs baseline). Clicking a bar uses the same drill-down handler as the table row.

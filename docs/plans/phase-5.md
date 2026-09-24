@@ -424,6 +424,83 @@ onHashChange(callback: () => void): () => void          // subscribes to 'hashch
   - Every "Required behavior coverage" bullet in the spec maps to a test.
 - [ ] **Step 4: Commit** `Prove phase 5 comparison by mutation`, and give the phase report in the session: what was built, the mutation outcome in a line, and any equivalent mutations with reasoning.
 
+---
+
+### Task 9: Median ignores zero periods; all three baselines side by side
+
+Added after Task 8, at the user's request. The spec's "Comparison", "Dashboard state" and "Dashboard view" sections were revised; they are the authority.
+
+**Files:**
+- Modify: `src/aggregate/compare.ts`, `src/ui/views/DashboardView.svelte`, `scripts/mutations.mjs` (anchors whose lines change)
+- Test: `tests/dashboard.test.ts`, `tests/dashboard-drilldown.test.ts`, `tests/helpers/dashboardData.ts` if shared data moves
+
+**Interfaces (Produces):** exactly the spec's types. `compare` loses its `baseline` input. `ComparisonRow` carries `mean`, `median` and `previous`, each a `BaselineResult = { value: number | 'insufficient'; delta: number | null; deltaPct: number | null }`.
+
+**Behavior:**
+- **Median:** only the pool periods where the row's value is non-zero count. It needs at least 3 such periods per row; otherwise that row's median is `'insufficient'`. The total row applies the same rule to its per-period totals. Mean and previous are unchanged.
+- **Missing-rate scope:** the compared period, plus, when the pool has at least 3 periods, every pool period and the previous period when it lies inside the span.
+- **Row visibility:** a row shows when `current` or any of the three values is non-zero, with insufficient counting as zero.
+- **UI:**
+  - The Baseline select is removed, and `baseline` leaves the Dashboard query. A stale `baseline` key is ignored.
+  - Columns: `Category | Current | Mean | vs mean | Median | vs median | Previous period | vs previous period`.
+  - A "vs" cell reads `+62.50 (+109%)`, or `+120.00 (—)` when `deltaPct` is null. It is empty when the baseline is insufficient.
+  - Each table sits in a container with `overflow-x: auto`.
+
+**Expected values.** All are hand-derived. Cells read left to right: Current | Mean | vs mean | Median | vs median | Previous | vs previous.
+
+- **MONTHS, today 2025-06-15, period 2025-05** (default):
+  - Groceries | 120.00 | 57.50 | +62.50 (+109%) | 80.00 | +40.00 (+50%) | 0.00 | +120.00 (—)
+  - Transport | 30.00 | 7.50 | +22.50 (+300%) | insufficient data | (empty) | 0.00 | +30.00 (—)
+  - Total spending | 150.00 | 65.00 | +85.00 (+131%) | 90.00 | +60.00 (+67%) | 0.00 | +150.00 (—)
+- **MONTHS, period 2025-06 (in progress):** here the median has an even count.
+  - Groceries | 40.00 | 70.00 | -30.00 (-43%) | 90.00 | -50.00 (-56%) | 120.00 | -80.00 (-67%)
+  - Transport | 0.00 | 12.00 | -12.00 (-100%) | 20.00 | -20.00 (-100%) | 30.00 | -30.00 (-100%)
+  - Total spending | 40.00 | 82.00 | -42.00 (-51%) | 105.00 | -65.00 (-62%) | 150.00 | -110.00 (-73%)
+- **MONTHS, period 2025-01:** Previous is insufficient for every row; the previous period is outside the span.
+  - Groceries | 100.00 | 62.50 | +37.50 (+60%) | 80.00 | +20.00 (+25%) | insufficient data | (empty)
+- **QUARTERS, period 2025 Q1:** Groceries and the total are the same row values.
+  - Groceries | 40.00 | 52.50 | -12.50 (-24%) | 60.00 | -20.00 (-33%) | 0.00 | +40.00 (—)
+- **YEARS, period 2024:** the median has only 2 non-zero years, so it is insufficient.
+  - Groceries | 300.00 | 116.67 | +183.33 (+157%) | insufficient data | (empty) | 0.00 | +300.00 (—)
+- **Total baseline from per-period totals.** This replaces the Task 8 data.
+  - Setup: today 2025-05-15, period 2025-04, pool Jan–Mar, Groceries/Grocer and Transport/Taxi.
+  - Rows: Grocer Jan −100, Grocer Feb −10, Grocer Mar −50, Taxi Jan −10, Taxi Feb −100, Taxi Mar −20, Grocer Apr −10.
+  - Groceries | 10.00 | 53.33 | -43.33 (-81%) | 50.00 | -40.00 (-80%) | 50.00 | -40.00 (-80%)
+  - Transport | 0.00 | 43.33 | -43.33 (-100%) | 20.00 | -20.00 (-100%) | 20.00 | -20.00 (-100%)
+  - Total spending | 10.00 | 96.67 | -86.67 (-90%) | 110.00 | -100.00 (-91%) | 70.00 | -60.00 (-86%)
+  - The category medians sum to 70.00 and the category means to 96.66, so both total columns discriminate.
+- **MIXED, period 2025-05, Spending tab:**
+  - Groceries | 110.00 | 57.50 | +52.50 (+91%) | 80.00 | +30.00 (+38%) | 0.00 | +110.00 (—)
+  - Transport | 30.00 | 7.50 | +22.50 (+300%) | insufficient data | (empty) | 0.00 | +30.00 (—)
+  - Uncategorized | 7.00 | 0.00 | +7.00 (—) | insufficient data | (empty) | 0.00 | +7.00 (—)
+  - Total spending | 147.00 | 65.00 | +82.00 (+126%) | 90.00 | +57.00 (+63%) | 0.00 | +147.00 (—)
+- **MIXED, period 2025-05, Income tab:**
+  - Salary | 1500.00 | 750.00 | +750.00 (+100%) | insufficient data | (empty) | 1500.00 | 0.00 (0%)
+  - Uncategorized | 5.00 | 0.00 | +5.00 (—) | insufficient data | (empty) | 0.00 | +5.00 (—)
+  - Total income | 1505.00 | 750.00 | +755.00 (+101%) | insufficient data | (empty) | 1500.00 | +5.00 (0%)
+- **Month boundary** (its own four rows):
+  - Period 2025-04: Groceries | 25.00 | 57.50 | -32.50 (-57%) | 80.00 | -55.00 (-69%) | 80.00 | -55.00 (-69%)
+  - Period 2025-05: Groceries | 0.00 | 63.75 | -63.75 (-100%) | 65.00 | -65.00 (-100%) | 25.00 | -25.00 (-100%)
+- **Missing rate:**
+  - The union scope gives `2 transactions excluded from totals: no exchange rate.` for 2025-05 (March and May). There is no longer a per-baseline difference, so the old "Previous period → 1" assertion goes.
+  - Replace "the count covers only the compared period when the baseline is insufficient" with a case whose pool has fewer than 3 periods. A no-rate row in a non-compared complete period must then not be counted. Derive the data by hand and record it in the report.
+- **Pinned-period test:** trigger the write by switching to the Income tab, not by changing the Baseline. After the remount, Period still shows 2025-05 and the Income tab is selected.
+- **Drill-down Back tests:** assert the period type, period and tab. There is no baseline to assert.
+
+**Definition of done:**
+- Every test above asserts the listed cells, with anchored matching and no extra row after the total.
+- The existing coverage of transfer/ignore exclusion, refund netting, uncategorized by sign, tabs, arrow keys, drill-down, URL fallback and remount is kept.
+- Mutation anchors in `scripts/mutations.mjs` that point at changed lines are updated to the same behavior.
+  - Run `npm run fixtures` and then `node scripts/mutate.mjs --only <ids>` for the anchors you moved.
+  - Do not add new mutations. The new and changed ones go to the user for approval afterwards.
+
+**Verify:** `npm run typecheck && npx vitest run --project behavior tests/dashboard.test.ts tests/dashboard-drilldown.test.ts`, then `npm run test:all`.
+
+- [ ] **Step 1: Failing tests.** Rewrite the dashboard tests to the new columns and values.
+- [ ] **Step 2: Implement** the `compare` and DashboardView changes, and move the anchors.
+- [ ] **Step 3: Verify and commit** `Show all baselines side by side; median ignores zero periods`.
+- [ ] **Step 4:** List the new and changed mutations for approval. At minimum: the median counts zeros again; the per-row median threshold goes from 3 to 2; the missing-rate count drops the previous period; a "vs" cell drops its percent. Then apply them and re-run the gate.
+
 ## Coverage map
 
 | Spec coverage bullet | Test |

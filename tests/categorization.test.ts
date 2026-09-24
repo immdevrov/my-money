@@ -52,6 +52,22 @@ const UNPAIRED_CONVERSION: StatementCell[] = [
   -30,
 ];
 
+const LATER_UNPAIRED_FOREIGN: StatementCell[] = [
+  '20/04/2025',
+  'Payment - Amount USD40.00; Foreign Exchange. FX Rate:2.8',
+  null,
+  -40,
+];
+
+const LATER_MATCHING_GEL: StatementCell[] = [
+  '20/04/2025',
+  'Income - Amount GEL112.00; Foreign Exchange. FX Rate:2.8.',
+  112,
+  null,
+];
+
+const RANDOM_PAYMENT: StatementCell[] = ['20/03/2025', 'Random Payment', -7];
+
 const SHOP_ALPHA_2: StatementCell[] = [
   '15/03/2025',
   'Payment - Amount: GEL11.00; Merchant: Shop Alpha, Tbilisi; MCC:1001; Date: 15/03/2025 10:00; Card No: ****1111',
@@ -109,6 +125,7 @@ test('a paired conversion shows Currency conversion with no select, and every ot
 
   const select = screen.getByRole('combobox', { name: 'Category for Shop Alpha' });
   await expect.element(select).toHaveValue('uncategorized');
+  await expect.element(select.getByRole('option', { name: /^Uncategorized$/ })).toBeDisabled();
   await expect.element(screen.getByText(/^manual$/)).not.toBeInTheDocument();
   await expect.element(screen.getByText(/^rule$/)).not.toBeInTheDocument();
 });
@@ -182,6 +199,13 @@ test('"Reset category" returns the row to Uncategorized and the button disappear
   await expect
     .element(screen.getByRole('button', { name: 'Reset category for Shop Alpha' }))
     .toBeVisible();
+  await expect
+    .element(
+      screen.getByText(
+        'Apply Groceries to all Shop Alpha transactions? It would categorize 1 now, and future imports too.',
+      ),
+    )
+    .toBeVisible();
 
   await screen.getByRole('button', { name: 'Reset category for Shop Alpha' }).click();
 
@@ -190,6 +214,13 @@ test('"Reset category" returns the row to Uncategorized and the button disappear
     .element(screen.getByRole('button', { name: 'Reset category for Shop Alpha' }))
     .not.toBeInTheDocument();
   await expect.element(screen.getByText(/^manual$/)).not.toBeInTheDocument();
+  await expect
+    .element(
+      screen.getByText(
+        'Apply Groceries to all Shop Alpha transactions? It would categorize 1 now, and future imports too.',
+      ),
+    )
+    .not.toBeInTheDocument();
 });
 
 test('a rule matches case-insensitively', async () => {
@@ -483,4 +514,45 @@ test('picking another row replaces the prompt, and a paired conversion never sho
   await expect.element(gelRow.getByRole('combobox')).not.toBeInTheDocument();
   await expect.element(usdRow.getByRole('combobox')).not.toBeInTheDocument();
   await expect.element(screen.getByRole('button', { name: 'No' })).toHaveLength(1);
+});
+
+test('pairing overrides a manual assignment made before its matching row was imported', async () => {
+  await importRows([LATER_UNPAIRED_FOREIGN], OPTIONS);
+
+  let screen = await render(CategoriesView);
+  await addCategory(screen, 'Misc guess');
+  cleanup();
+
+  screen = await render(TransactionsView);
+  const select = screen.getByRole('combobox', { name: 'Category for Currency conversion' });
+  await select.selectOptions(select.getByRole('option', { name: /^Misc guess$/ }));
+  await expect
+    .element(screen.getByRole('option', { name: /^Misc guess$/, selected: true }))
+    .toBeInTheDocument();
+
+  await importRows([LATER_MATCHING_GEL], OPTIONS);
+
+  screen = await render(TransactionsView);
+  await expect.element(screen.getByRole('cell', { name: /^Currency conversion$/ })).toHaveLength(4);
+  await expect
+    .element(screen.getByRole('table', { name: 'Transactions' }).getByRole('combobox'))
+    .not.toBeInTheDocument();
+  await expect.element(screen.getByText(/^manual$/)).not.toBeInTheDocument();
+});
+
+test('a rule on the mcc field never matches a row with no MCC', async () => {
+  await importRows([RANDOM_PAYMENT]);
+
+  let screen = await render(CategoriesView);
+  await addCategory(screen, 'Misc');
+  cleanup();
+
+  screen = await render(RulesView);
+  await addRule(screen, { field: 'mcc', pattern: '1001', category: 'Misc' });
+  cleanup();
+
+  screen = await render(TransactionsView);
+  const select = screen.getByRole('combobox', { name: 'Category for Random Payment' });
+  await expect.element(select).toHaveValue('uncategorized');
+  await expect.element(screen.getByText(/^rule$/)).not.toBeInTheDocument();
 });

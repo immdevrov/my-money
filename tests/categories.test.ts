@@ -82,6 +82,19 @@ test('adding a category lists it with its type and colour', async () => {
   await expect.element(screen.getByRole('cell', { name: /Teal/ })).toBeVisible();
 });
 
+test('a category added without picking a colour gets the first unused palette colour', async () => {
+  const screen = await render(CategoriesView);
+
+  await expect.element(screen.getByRole('cell', { name: /^Currency conversion$/ })).toBeVisible();
+  await screen.getByRole('button', { name: 'Edit Currency conversion' }).click();
+  await screen.getByRole('button', { name: 'Cancel' }).click();
+
+  await addCategory(screen, 'Groceries');
+
+  await expect.element(screen.getByRole('cell', { name: /^Groceries$/ })).toBeVisible();
+  await expect.element(screen.getByRole('cell', { name: /Blue/ })).toBeVisible();
+});
+
 test('a fresh database seeds exactly one category, Currency conversion', async () => {
   const screen = await render(CategoriesView);
 

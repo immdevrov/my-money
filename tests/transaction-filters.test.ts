@@ -16,6 +16,12 @@ const FEE: StatementCell[] = [
 
 const ALL = [ALPHA, BETA, GAMMA, DELTA, FEE];
 
+const CONVERSION: StatementCell[] = [
+  '12/03/2025',
+  'Payment - Amount GEL20.00; Foreign Exchange. FX Rate:2.5',
+  -20,
+];
+
 function bodyRows(screen: Awaited<ReturnType<typeof render>>) {
   return screen.getByRole('table', { name: 'Transactions' }).getByRole('row');
 }
@@ -37,6 +43,15 @@ test('period filter narrows to a year', async () => {
 
   await expect.element(bodyRows(screen)).toHaveLength(2);
   await expect.element(screen.getByRole('cell', { name: /^Delta payment$/ })).toBeVisible();
+});
+
+test('the Period select lists each year once, newest first', async () => {
+  await importRows(ALL);
+  const screen = await render(TransactionsView);
+
+  const period = screen.getByRole('combobox', { name: 'Period' });
+  await expect.element(period.getByRole('option', { name: /^2025$/ })).toHaveLength(1);
+  await expect.element(period.getByRole('option').nth(1)).toHaveTextContent('2025');
 });
 
 test('period filter narrows to a quarter', async () => {
@@ -117,6 +132,16 @@ test('search matches a counterparty derived from details', async () => {
 
   await expect.element(bodyRows(screen)).toHaveLength(2);
   await expect.element(screen.getByRole('cell', { name: /^Bank Mu$/ })).toBeVisible();
+});
+
+test('search matches the counterparty case-insensitively even when the counterparty is not a substring of the details', async () => {
+  await importRows([CONVERSION, ALPHA]);
+  const screen = await render(TransactionsView);
+
+  await screen.getByRole('searchbox', { name: 'Search' }).fill('CURRENCY');
+
+  await expect.element(bodyRows(screen)).toHaveLength(2);
+  await expect.element(screen.getByRole('cell', { name: /^Currency conversion$/ })).toBeVisible();
 });
 
 test('search matches raw details text not present in the counterparty', async () => {

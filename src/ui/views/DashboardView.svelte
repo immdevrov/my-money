@@ -15,16 +15,49 @@
   import { listCategories } from '../../db/categories';
   import { listAll } from '../../db/transactions';
   import { formatMinor } from '../../import/amount';
+  import { onHashChange, readQuery, replaceQuery } from '../hashQuery';
 
   type Tab = 'spending' | 'income';
+  type QueryKey = 'type' | 'period' | 'baseline' | 'tab';
+
+  const PERIOD_TYPES: readonly string[] = ['month', 'quarter', 'year'];
+  const BASELINES: readonly string[] = ['mean', 'median', 'previous'];
+  const TABS: readonly string[] = ['spending', 'income'];
 
   const transactions = liveQuery(async () => listAll());
   const categories = liveQuery(async () => listCategories());
 
-  let periodType = $state<PeriodType>('month');
-  let chosenPeriod = $state<string | null>(null);
-  let baseline = $state<Baseline>('mean');
-  let activeTab = $state<Tab>('spending');
+  function dashboardQuery(): Record<QueryKey, string> {
+    const params = readQuery();
+    return {
+      type: params.get('type') ?? '',
+      period: params.get('period') ?? '',
+      baseline: params.get('baseline') ?? '',
+      tab: params.get('tab') ?? '',
+    };
+  }
+
+  let query = $state(dashboardQuery());
+
+  $effect(() =>
+    onHashChange(() => {
+      query = dashboardQuery();
+    }),
+  );
+
+  const periodType = $derived(
+    PERIOD_TYPES.includes(query.type) ? (query.type as PeriodType) : 'month',
+  );
+  const baseline = $derived(
+    BASELINES.includes(query.baseline) ? (query.baseline as Baseline) : 'mean',
+  );
+  const activeTab = $derived(TABS.includes(query.tab) ? (query.tab as Tab) : 'spending');
+
+  function update(changes: Partial<Record<QueryKey, string>>) {
+    query = { ...query, ...changes };
+    replaceQuery({ type: periodType, period: query.period, baseline, tab: activeTab });
+  }
+
   let spendingTabEl = $state<HTMLButtonElement | null>(null);
   let incomeTabEl = $state<HTMLButtonElement | null>(null);
 
@@ -35,8 +68,7 @@
 
     const today = localToday(new Date());
     const { span, current, defaultPeriod } = dashboardPeriods(rows, today, periodType);
-    const period =
-      chosenPeriod !== null && span.includes(chosenPeriod) ? chosenPeriod : defaultPeriod;
+    const period = span.includes(query.period) ? query.period : defaultPeriod;
 
     const options = span.map((value) => ({
       value,
@@ -75,14 +107,20 @@
     return value > 0 ? `+${value}%` : `${value}%`;
   }
 
+  function drillHref(period: string, category?: string): string {
+    const params = new URLSearchParams({ period });
+    if (category !== undefined) params.set('category', category);
+    return `#/transactions?${params}`;
+  }
+
   function selectTab(tab: Tab) {
-    activeTab = tab;
+    update({ tab });
   }
 
   function onTabKeydown(event: KeyboardEvent) {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
     event.preventDefault();
-    activeTab = activeTab === 'spending' ? 'income' : 'spending';
+    selectTab(activeTab === 'spending' ? 'income' : 'spending');
     (activeTab === 'spending' ? spendingTabEl : incomeTabEl)?.focus();
   }
 </script>
@@ -98,10 +136,7 @@
       <select
         id="dashboard-period-type"
         value={periodType}
-        onchange={(event) => {
-          periodType = event.currentTarget.value as PeriodType;
-          chosenPeriod = null;
-        }}
+        onchange={(event) => update({ type: event.currentTarget.value, period: '' })}
       >
         <option value="month">Month</option>
         <option value="quarter">Quarter</option>
@@ -113,7 +148,7 @@
       <select
         id="dashboard-period"
         value={view.period}
-        onchange={(event) => (chosenPeriod = event.currentTarget.value)}
+        onchange={(event) => update({ period: event.currentTarget.value })}
       >
         {#each view.options as option (option.value)}
           <option value={option.value}>{option.label}</option>
@@ -125,7 +160,7 @@
       <select
         id="dashboard-baseline"
         value={baseline}
-        onchange={(event) => (baseline = event.currentTarget.value as Baseline)}
+        onchange={(event) => update({ baseline: event.currentTarget.value })}
       >
         <option value="mean">Mean</option>
         <option value="median">Median</option>
@@ -174,7 +209,7 @@
       id="dashboard-panel-spending"
       aria-labelledby="dashboard-tab-spending"
     >
-      {@render comparisonTable('Spending comparison', view.spending)}
+      {@render comparisonTable('Spending comparison', view.spending, view.period)}
     </div>
   {:else}
     <div
@@ -183,12 +218,12 @@
       id="dashboard-panel-income"
       aria-labelledby="dashboard-tab-income"
     >
-      {@render comparisonTable('Income comparison', view.income)}
+      {@render comparisonTable('Income comparison', view.income, view.period)}
     </div>
   {/if}
 {/if}
 
-{#snippet comparisonTable(caption: string, tableData: ComparisonTable)}
+{#snippet comparisonTable(caption: string, tableData: ComparisonTable, period: string)}
   <table>
     <caption>{caption}</caption>
     <thead>
@@ -202,18 +237,18 @@
     </thead>
     <tbody>
       {#each tableData.rows as row (row.categoryId)}
-        {@render comparisonRow(row)}
+        {@render comparisonRow(row, drillHref(period, row.categoryId ?? 'uncategorized'))}
       {/each}
     </tbody>
     <tfoot>
-      {@render comparisonRow(tableData.total)}
+      {@render comparisonRow(tableData.total, drillHref(period))}
     </tfoot>
   </table>
 {/snippet}
 
-{#snippet comparisonRow(row: ComparisonRow)}
+{#snippet comparisonRow(row: ComparisonRow, href: string)}
   <tr>
-    <th scope="row">{row.name}</th>
+    <th scope="row"><a {href}>{row.name}</a></th>
     <td class="number">{formatMinor(row.current)}</td>
     {#if row.baseline === 'insufficient'}
       <td class="number">insufficient data</td>
@@ -284,6 +319,10 @@
     border-bottom: 1px solid var(--border);
     padding: var(--space-1) var(--space-2);
     text-align: left;
+  }
+
+  th a {
+    color: var(--accent);
   }
 
   .number {

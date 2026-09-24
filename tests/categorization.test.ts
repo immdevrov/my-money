@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { cleanup, render } from 'vitest-browser-svelte';
 import App from '../src/App.svelte';
 import CategoriesView from '../src/ui/views/CategoriesView.svelte';
@@ -185,6 +186,25 @@ test('cancelling "New category…" leaves the row uncategorized', async () => {
   await screen.getByRole('button', { name: 'Cancel' }).click();
 
   await expect.element(select).toHaveValue('uncategorized');
+  await expect.element(screen.getByText(/^manual$/)).not.toBeInTheDocument();
+});
+
+test('"New category…" opens a modal dialog focused on Name; Escape leaves the row uncategorized', async () => {
+  await importRows([SHOP_ALPHA]);
+  const screen = await render(TransactionsView);
+
+  const select = screen.getByRole('combobox', { name: 'Category for Shop Alpha' });
+  await select.selectOptions(select.getByRole('option', { name: 'New category…' }));
+
+  const dialog = screen.getByRole('dialog', { name: 'New category' });
+  await expect.element(dialog).toBeVisible();
+  expect((dialog.element() as HTMLDialogElement).matches(':modal')).toBe(true);
+  await expect.element(screen.getByLabelText('Name')).toHaveFocus();
+
+  await userEvent.keyboard('{Escape}');
+
+  await expect.element(select).toHaveValue('uncategorized');
+  await expect.element(screen.getByLabelText('Name')).not.toBeInTheDocument();
   await expect.element(screen.getByText(/^manual$/)).not.toBeInTheDocument();
 });
 
@@ -441,6 +461,39 @@ test('"Cancel" in the edit-rule dialog leaves the manual assignment and closes t
   await screen.getByRole('button', { name: 'Edit rule…' }).click();
   await screen.getByRole('button', { name: 'Cancel' }).click();
 
+  await expect
+    .element(screen.getByRole('option', { name: /^Groceries$/, selected: true }))
+    .toBeInTheDocument();
+  await expect.element(screen.getByText(/^manual$/)).toBeVisible();
+  await expect
+    .element(
+      screen.getByText(
+        'Apply Groceries to all Shop Alpha transactions? It would categorize 1 now, and future imports too.',
+      ),
+    )
+    .not.toBeInTheDocument();
+});
+
+test('"Edit rule…" opens a modal dialog; Escape leaves the manual assignment and closes the prompt', async () => {
+  await importRows([SHOP_ALPHA], OPTIONS);
+
+  let screen = await render(CategoriesView);
+  await addCategory(screen, 'Groceries');
+  cleanup();
+
+  screen = await render(TransactionsView);
+  const select = screen.getByRole('combobox', { name: 'Category for Shop Alpha' });
+  await select.selectOptions(select.getByRole('option', { name: /^Groceries$/ }));
+
+  await screen.getByRole('button', { name: 'Edit rule…' }).click();
+
+  const dialog = screen.getByRole('dialog', { name: 'Edit rule' });
+  await expect.element(dialog).toBeVisible();
+  expect((dialog.element() as HTMLDialogElement).matches(':modal')).toBe(true);
+
+  await userEvent.keyboard('{Escape}');
+
+  await expect.element(screen.getByRole('dialog', { name: 'Edit rule' })).not.toBeInTheDocument();
   await expect
     .element(screen.getByRole('option', { name: /^Groceries$/, selected: true }))
     .toBeInTheDocument();

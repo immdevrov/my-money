@@ -26,6 +26,7 @@
   --warning: #8a5300;
   --warning-surface: #fff5e0;
   --success: #1c6b3c;
+  --backdrop: rgba(15, 18, 22, 0.45);
 
   --palette-1: #3b82f6;
   --palette-2: #0d9488;
@@ -56,6 +57,7 @@
     --warning: #e0b057;
     --warning-surface: #392c11;
     --success: #6fcf97;
+    --backdrop: rgba(0, 0, 0, 0.65);
 
     --palette-1: #60a5fa;
     --palette-2: #2dd4bf;
@@ -118,4 +120,15 @@ td {
 th {
   background: var(--surface-sunken);
   font-weight: 600;
+}
+
+dialog {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+}
+
+dialog::backdrop {
+  background: var(--backdrop);
 }

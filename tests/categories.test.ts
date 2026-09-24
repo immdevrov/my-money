@@ -1,4 +1,5 @@
 import { expect, test } from 'vitest';
+import { userEvent } from 'vitest/browser';
 import { cleanup, render } from 'vitest-browser-svelte';
 import App from '../src/App.svelte';
 import CategoriesView from '../src/ui/views/CategoriesView.svelte';
@@ -178,6 +179,55 @@ test('deleting a category with no rules or manual assignments confirms with zero
 
   await screen.getByRole('button', { name: /^Delete$/ }).click();
   await expect.element(screen.getByRole('cell', { name: /^Groceries$/ })).not.toBeInTheDocument();
+});
+
+test('"Delete {name}" opens a modal confirmation; Escape leaves the category listed', async () => {
+  const screen = await render(CategoriesView);
+
+  await addCategory(screen, 'Groceries');
+  await expect.element(screen.getByRole('cell', { name: /^Groceries$/ })).toBeVisible();
+
+  await screen.getByRole('button', { name: 'Delete Groceries' }).click();
+
+  const dialog = screen.getByRole('dialog', { name: 'Delete category' });
+  await expect.element(dialog).toBeVisible();
+  expect((dialog.element() as HTMLDialogElement).matches(':modal')).toBe(true);
+
+  await userEvent.keyboard('{Escape}');
+
+  await expect.element(screen.getByRole('dialog', { name: 'Delete category' })).not.toBeInTheDocument();
+  await expect.element(screen.getByRole('cell', { name: /^Groceries$/ })).toBeVisible();
+});
+
+test('typing into the Add form survives deleting an unrelated category', async () => {
+  const screen = await render(CategoriesView);
+
+  await addCategory(screen, 'Groceries');
+  await addCategory(screen, 'Snacks');
+
+  await screen.getByLabelText('Name').fill('Snac');
+
+  await screen.getByRole('button', { name: 'Delete Snacks' }).click();
+  await screen.getByRole('button', { name: /^Delete$/ }).click();
+  await expect.element(screen.getByRole('cell', { name: /^Snacks$/ })).not.toBeInTheDocument();
+
+  await expect.element(screen.getByLabelText('Name')).toHaveValue('Snac');
+});
+
+test('editing a category without saving survives deleting a different category', async () => {
+  const screen = await render(CategoriesView);
+
+  await addCategory(screen, 'Groceries');
+  await addCategory(screen, 'Snacks');
+
+  await screen.getByRole('button', { name: 'Edit Groceries' }).click();
+  await screen.getByLabelText('Name').fill('Produce (draft)');
+
+  await screen.getByRole('button', { name: 'Delete Snacks' }).click();
+  await screen.getByRole('button', { name: /^Delete$/ }).click();
+  await expect.element(screen.getByRole('cell', { name: /^Snacks$/ })).not.toBeInTheDocument();
+
+  await expect.element(screen.getByLabelText('Name')).toHaveValue('Produce (draft)');
 });
 
 test('renaming a category in CategoriesView changes the name a transaction row shows', async () => {

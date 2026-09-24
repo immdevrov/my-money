@@ -386,4 +386,23 @@ export const MUTATIONS = [
   ['M124 currency-conversion type stays disabled', CATFORM,
     `const typeDisabled = untrack(() => category?.id === CURRENCY_CONVERSION_ID);`,
     `const typeDisabled = untrack(() => category?.id !== CURRENCY_CONVERSION_ID);`],
+
+  ['M125 new-category dialog opens modal', TXVIEW,
+    `if (newCategoryRow && !dialogEl.open) dialogEl.showModal();`,
+    `if (newCategoryRow && !dialogEl.open) dialogEl.show();`],
+  ['M126 edit-rule dialog opens modal', TXVIEW,
+    `if (editingRuleRow && !dialogEl.open) dialogEl.showModal();`,
+    `if (editingRuleRow && !dialogEl.open) dialogEl.show();`],
+  ['M127 delete-category dialog opens modal', CATVIEW,
+    `if (deleteTarget && !dialogEl.open) dialogEl.showModal();`,
+    `if (deleteTarget && !dialogEl.open) dialogEl.show();`],
+  ['M128 new-category dialog Escape resets state', TXVIEW,
+    `  function onNewCategoryDialogClose() {
+    if (newCategoryRow) cancelNewCategory();
+  }`,
+    `  function onNewCategoryDialogClose() {
+  }`],
+  ['M129 category form remounts only after its own save', CATVIEW,
+    `{#key \`\${editing?.id ?? 'new'}-\${addFormVersion}\`}`,
+    `{#key \`\${editing?.id ?? 'new'}-\${addFormVersion}-\${categoryList.length}\`}`],
 ];

@@ -11,10 +11,31 @@
   let editing = $state<Category | null>(null);
   let deleteTarget = $state<Category | null>(null);
   let deleteCounts = $state<{ rules: number; manual: number }>({ rules: 0, manual: 0 });
+  let addFormVersion = $state(0);
+  let pendingSavedId = $state<string | null>(null);
+  let deleteDialogEl = $state<HTMLDialogElement | null>(null);
+
+  $effect(() => {
+    const list = $categories;
+    const id = pendingSavedId;
+    if (list !== undefined && id !== null && list.some((category) => category.id === id)) {
+      pendingSavedId = null;
+      addFormVersion += 1;
+    }
+  });
+
+  $effect(() => {
+    const dialogEl = deleteDialogEl;
+    if (!dialogEl) return;
+    if (deleteTarget && !dialogEl.open) dialogEl.showModal();
+    else if (!deleteTarget && dialogEl.open) dialogEl.close();
+  });
 
   async function onSave(category: Category) {
+    const wasAdd = !editing;
     await saveCategory(category);
     editing = null;
+    if (wasAdd) pendingSavedId = category.id;
   }
 
   function onEditCancel() {
@@ -34,6 +55,10 @@
 
   function cancelDelete() {
     deleteTarget = null;
+  }
+
+  function onDeleteDialogClose() {
+    if (deleteTarget) cancelDelete();
   }
 
   function impactText(name: string, counts: { rules: number; manual: number }): string {
@@ -78,7 +103,7 @@
 {#if $categories !== undefined}
   {@const categoryList = $categories}
   <h2>{editing ? 'Edit category' : 'Add category'}</h2>
-  {#key `${editing?.id ?? 'new'}-${categoryList.length}`}
+  {#key `${editing?.id ?? 'new'}-${addFormVersion}`}
     <CategoryForm
       category={editing ?? undefined}
       categories={categoryList}
@@ -88,14 +113,14 @@
   {/key}
 {/if}
 
-{#if deleteTarget}
-  <dialog open aria-labelledby="delete-category-heading">
-    <h2 id="delete-category-heading">Delete category</h2>
+<dialog bind:this={deleteDialogEl} aria-labelledby="delete-category-heading" onclose={onDeleteDialogClose}>
+  <h2 id="delete-category-heading">Delete category</h2>
+  {#if deleteTarget}
     <p>{impactText(deleteTarget.name, deleteCounts)}</p>
-    <button type="button" onclick={confirmDelete}>Delete</button>
-    <button type="button" onclick={cancelDelete}>Cancel</button>
-  </dialog>
-{/if}
+  {/if}
+  <button type="button" onclick={confirmDelete}>Delete</button>
+  <button type="button" onclick={cancelDelete} autofocus>Cancel</button>
+</dialog>
 
 <style>
   .swatch {

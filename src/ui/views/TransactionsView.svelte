@@ -240,6 +240,31 @@
     await addRuleFromTransaction(draft, editingRuleRow.id);
     closePrompt();
   }
+
+  let newCategoryDialogEl = $state<HTMLDialogElement | null>(null);
+  let editRuleDialogEl = $state<HTMLDialogElement | null>(null);
+
+  $effect(() => {
+    const dialogEl = newCategoryDialogEl;
+    if (!dialogEl) return;
+    if (newCategoryRow && !dialogEl.open) dialogEl.showModal();
+    else if (!newCategoryRow && dialogEl.open) dialogEl.close();
+  });
+
+  $effect(() => {
+    const dialogEl = editRuleDialogEl;
+    if (!dialogEl) return;
+    if (editingRuleRow && !dialogEl.open) dialogEl.showModal();
+    else if (!editingRuleRow && dialogEl.open) dialogEl.close();
+  });
+
+  function onNewCategoryDialogClose() {
+    if (newCategoryRow) cancelNewCategory();
+  }
+
+  function onEditRuleDialogClose() {
+    if (editingRuleRow) closePrompt();
+  }
 </script>
 
 <h1>Transactions</h1>
@@ -369,16 +394,24 @@
   {/if}
 {/if}
 
-{#if newCategoryRow}
-  <dialog open aria-labelledby="new-category-heading">
-    <h2 id="new-category-heading">New category</h2>
+<dialog
+  bind:this={newCategoryDialogEl}
+  aria-labelledby="new-category-heading"
+  onclose={onNewCategoryDialogClose}
+>
+  <h2 id="new-category-heading">New category</h2>
+  {#if newCategoryRow}
     <CategoryForm categories={$categories ?? []} onsave={saveNewCategory} oncancel={cancelNewCategory} />
-  </dialog>
-{/if}
+  {/if}
+</dialog>
 
-{#if editingRuleRow}
-  <dialog open aria-labelledby="edit-rule-heading">
-    <h2 id="edit-rule-heading">Edit rule</h2>
+<dialog
+  bind:this={editRuleDialogEl}
+  aria-labelledby="edit-rule-heading"
+  onclose={onEditRuleDialogClose}
+>
+  <h2 id="edit-rule-heading">Edit rule</h2>
+  {#if editingRuleRow}
     <RuleForm
       categories={$categories ?? []}
       basedOn={basedOnOptions(editingRuleRow)}
@@ -388,8 +421,8 @@
       oncancel={closePrompt}
       ondraftchange={(draft) => (editRuleDraft = draft)}
     />
-  </dialog>
-{/if}
+  {/if}
+</dialog>
 
 <style>
   .filters {

@@ -18,7 +18,12 @@
   $effect(() => {
     const list = $categories;
     const id = pendingSavedId;
-    if (list !== undefined && id !== null && list.some((category) => category.id === id)) {
+    if (
+      list !== undefined &&
+      id !== null &&
+      editing === null &&
+      list.some((category) => category.id === id)
+    ) {
       pendingSavedId = null;
       addFormVersion += 1;
     }
@@ -36,6 +41,11 @@
     await saveCategory(category);
     editing = null;
     if (wasAdd) pendingSavedId = category.id;
+  }
+
+  function startEdit(category: Category) {
+    pendingSavedId = null;
+    editing = category;
   }
 
   function onEditCancel() {
@@ -90,7 +100,7 @@
           {colourName(category.color)}
         </td>
         <td>
-          <button type="button" onclick={() => (editing = category)}>Edit {category.name}</button>
+          <button type="button" onclick={() => startEdit(category)}>Edit {category.name}</button>
           {#if category.id !== CURRENCY_CONVERSION_ID}
             <button type="button" onclick={() => openDelete(category)}>Delete {category.name}</button>
           {/if}

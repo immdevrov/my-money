@@ -405,4 +405,10 @@ export const MUTATIONS = [
   ['M129 category form remounts only after its own save', CATVIEW,
     `{#key \`\${editing?.id ?? 'new'}-\${addFormVersion}\`}`,
     `{#key \`\${editing?.id ?? 'new'}-\${addFormVersion}-\${categoryList.length}\`}`],
+  ['M130 add-settling bump never fires while editing', CATVIEW,
+    `      id !== null &&
+      editing === null &&
+      list.some((category) => category.id === id)`,
+    `      id !== null &&
+      list.some((category) => category.id === id)`],
 ];

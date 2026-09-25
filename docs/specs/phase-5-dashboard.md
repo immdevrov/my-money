@@ -1,6 +1,6 @@
 # Phase 5 — Dashboard comparison
 
-The Dashboard answers one question: how did a period's spending and income compare with what is usual? It compares a chosen period against three baselines side by side (mean, median and previous period), per category and in total, and every category row leads to the transactions behind it.
+The Dashboard answers one question: how did a period's spending and income compare with what is usual? It compares a chosen period against its baselines side by side (mean, median, previous period and, for months and quarters, the same period last year), per category and in total, and every category row leads to the transactions behind it.
 
 ## Scope
 
@@ -68,6 +68,7 @@ type PeriodType = 'month' | 'quarter' | 'year'
 periodOf(date: string, type: PeriodType): string       // '2025-03' | '2025-Q1' | '2025'
 periodsInSpan(earliest: string, today: string, type: PeriodType): string[]   // newest first
 previousPeriod(period: string): string
+samePeriodLastYear(period: string): string             // '2024-03' | '2024-Q1' | '2023'
 periodLabel(period: string): string                    // '2025-03' | '2025 Q1' | '2025'
 ```
 
@@ -82,7 +83,9 @@ periodLabel(period: string): string                    // '2025-03' | '2025 Q1' 
 `src/aggregate/compare.ts` is pure.
 
 ```ts
-type Baseline = 'mean' | 'median' | 'previous'
+type Baseline = 'mean' | 'median' | 'previous' | 'yearAgo'
+
+WINDOW_SIZE: Record<PeriodType, number>        // month 6, quarter 4, year 3
 
 compare(input: {
   rows: Transaction[]
@@ -110,6 +113,7 @@ type ComparisonRow = {
   mean: BaselineResult
   median: BaselineResult
   previous: BaselineResult
+  yearAgo: BaselineResult | null             // null for the year type
 }
 
 type BaselineResult = {
@@ -119,20 +123,21 @@ type BaselineResult = {
 }
 ```
 
-Every row carries all three baselines. There is no baseline parameter: the Dashboard shows them side by side.
+Every row carries every baseline. There is no baseline parameter: the Dashboard shows them side by side.
 
 ### Baselines
 
-- **The pool** is every complete period in the span except the compared one. It may include periods after the compared period.
-- A baseline needs at least 3 periods in the pool. With fewer, all three baselines of every row, including the total's, are `'insufficient'`.
-- **Mean:** the sum over the pool divided by the pool size, counting 0 for a period where the category has no rows. It is rounded half-up, away from zero, in integer minor units.
-- **Median:** over the pool periods where the row's value is non-zero only. A period with no spending in the category, or with a net of exactly 0, is left out. The row needs at least 3 such periods; with fewer, its median is `'insufficient'`, independently of other rows. For an even count, it is the mean of the two middle values, rounded the same way as the mean.
-- **Previous:** the value in the period immediately before the compared one. It needs the pool threshold, and also that the previous period lies inside the span. Otherwise it is `'insufficient'`.
+- **The window** for the compared period P is the latest N complete periods before P, within the span: 6 months, 4 quarters or 3 years (`WINDOW_SIZE`). Periods after P, P itself and the current period never count. Near the start of the history the window is shorter than N and uses what there is.
+- A baseline needs at least 3 periods in the window. With fewer, every baseline of every row, including the total's, is `'insufficient'`.
+- **Mean:** the sum over the window divided by the window size, counting 0 for a period where the category has no rows. It is rounded half-up, away from zero, in integer minor units.
+- **Median:** over the window periods where the row's value is non-zero only. A period with no spending in the category, or with a net of exactly 0, is left out. The row needs at least 3 such periods; with fewer, its median is `'insufficient'`, independently of other rows. For an even count, it is the mean of the two middle values, rounded the same way as the mean.
+- **Previous:** the value in the period immediately before the compared one, which is always the newest window period.
+- **Year ago** (months and quarters): the value in the same month or quarter one year before P. It is `'insufficient'` when that period lies outside the span. When it lies inside, the window is full, so the threshold always holds. For the year type it is `null`.
 - The total row's baselines are computed from the per-period totals, not by summing category baselines. For the median, the non-zero rule applies to the per-period totals. A median of totals is not a sum of medians.
 
 ### Rows
 
-- A category, or Uncategorized, gets a row when its current value or any of its three baselines is non-zero. An insufficient baseline counts as zero for this test.
+- A category, or Uncategorized, gets a row when its current value or any of its baselines is non-zero. An insufficient baseline counts as zero for this test.
 - Rows are sorted by `current` descending, then by name.
 - For each baseline: `delta = current − value`, and `deltaPct = delta × 100 / value`, rounded half-up away from zero to a whole percent, in integer arithmetic. `deltaPct` is `null` when the value is 0.
 - The total row is named "Total spending" or "Total income". Its `current` is the sum over every counted row in the tab, so it equals the sum of the table's rows.
@@ -141,7 +146,8 @@ Every row carries all three baselines. There is no baseline parameter: the Dashb
 
 `missingRate` counts rows that would be counted but have no GEL amount, and whose period is one that a number on screen depends on:
 - the compared period, plus
-- when the pool has at least 3 periods: every pool period. The previous period, whenever it lies inside the span, is itself a pool period.
+- when the window has at least 3 periods: every window period, the previous period among them, plus
+- the same period last year, when it lies inside the span.
 
 ## Routing and the URL
 
@@ -184,7 +190,10 @@ Every row carries all three baselines. There is no baseline parameter: the Dashb
 - **Missing rates:** "{N} transaction(s) excluded from totals: no exchange rate." The singular and plural follow N. The message is hidden when N is 0.
 - **Tabs:** a `tablist` named "Comparison" with the tabs "Spending" and "Income". Each tab has `aria-selected` and controls its `tabpanel`, and only the selected panel is rendered. Arrow keys move between the tabs.
 - **Tables:** each panel holds a table named "Spending comparison" or "Income comparison".
-  - Columns: Category, Current, Mean, vs mean, Median, vs median, Previous period, vs previous period. The total row is last.
+  - Columns for months: Category, Current, Mean (6 months), vs mean, Median (6 months), vs median, Previous month, vs previous month, Same month last year, vs same month last year.
+  - Quarters name `4 quarters`, `Previous quarter` and `Same quarter last year`. Years show Mean (3 years), Median (3 years) and Previous year, with no year-ago column.
+  - A header keeps N even when the window is shorter near the start of the history.
+  - The total row is last.
   - Amounts use `formatMinor`. A "vs" cell shows the change and its percent together: `+62.50 (+109%)`, `-12.50 (-24%)`, `0.00 (0%)`, or `+120.00 (—)` when `deltaPct` is `null`. The change has a `+` sign when positive.
   - An insufficient baseline shows "insufficient data" in its value column, and its "vs" cell is empty.
   - The table sits in a container that scrolls horizontally, so the page itself never scrolls sideways at phone width.
@@ -209,18 +218,21 @@ tests/helpers/freezeDate.ts
 
 ## Required behavior coverage
 
-- With `freezeDate`, the Spending table's values match hand-computed expectations for each period type (month, quarter, year), with the mean, median and previous-period columns side by side.
+- With `freezeDate`, the Spending table's values match hand-computed expectations for each period type (month, quarter, year), with every baseline column side by side.
+- The mean and median use only the N complete periods before the compared one, for each period type. A period after the compared one never changes its baseline.
+- The column headers name the window and the period type.
+- Months and quarters show the same period last year; years do not.
 - The Income tab shows income categories and uncategorized inflows. Uncategorized outflows appear under Spending.
 - The current incomplete period is excluded from baselines, but can be picked and is labelled in progress.
 - The default period is the most recent complete one.
-- Fewer than 3 complete periods shows "insufficient data".
+- A window of fewer than 3 periods shows "insufficient data" in every baseline column.
 - The mean counts zero for months in which a category is absent, including months with no transactions at all.
 - The median leaves out zero periods. A row with fewer than 3 non-zero periods shows "insufficient data" in Median while other rows show a value. An even count of non-zero periods averages the two middle values.
 - Transfer- and ignore-type categories, including paired conversions, are excluded from totals.
 - A refund in an expense category lowers that category's spending.
 - A month-boundary card payment is counted in its effective month.
 - A zero baseline shows "—" as the percent in its "vs" cell.
-- The missing-rate exclusion count is shown, and the rows it counts are excluded from totals.
+- The missing-rate exclusion count is shown, covers the compared period, the window and the same period last year, and the rows it counts are excluded from totals.
 - Rate lookup, in the Transactions GEL column:
   - With no earlier rate, a later rate in the same month applies.
   - A later same-month rate that is closer than an earlier rate beats it.
@@ -238,11 +250,14 @@ Spending has many categories and income has few. Two tables stacked on one page 
 ### A category's type decides its tab; uncategorized rows go by sign
 A categorized row's meaning comes from the user's choice of category, so a refund in Groceries lowers grocery spending rather than showing up as income. An uncategorized row carries no such choice, and its sign is the only evidence of what it is.
 
-### The baseline pool is the calendar span
-Every period from the first data period to the last complete one counts, including empty ones. An empty month is real information: nothing was spent. The first period counts even if the export starts partway through it. That rule is predictable from dates alone, and a heuristic for a partial first month would be a guess.
+### The window is a calendar span
+Every period in the window counts, including empty ones. An empty month is real information: nothing was spent. The first period counts even if the export starts partway through it. That rule is predictable from dates alone, and a heuristic for a partial first month would be a guess.
 
-### The pool is every other complete period, not only earlier ones
-This follows the parent spec as written. The baseline describes what is usual across all the history there is, not what was known at the time. The same threshold of 3 applies to "previous" as well, so all three baselines share one rule for when there is enough data.
+### Only the latest earlier periods count
+A budget comparison asks whether spending is high compared with what the user was used to recently. Later periods describe habits the user did not have yet, and would change an old period's baseline whenever new data is imported. A trailing window of 6 months, 4 quarters or 3 years keeps old habits from diluting the comparison. The same threshold of 3 applies to "previous" as well, so the baselines share one rule for when there is enough data. See `docs/specs/trailing-baselines.md`.
+
+### Same period last year sits beside Previous period
+Seasonal spending compares better with the same month or quarter a year earlier, while month-to-month change answers a different question, so both are shown. Years have no such column: their previous period already is the year before.
 
 ### The default period is the last complete one
 A finished period is the comparison that means something on first view. The current period is still selectable, labelled in progress.
@@ -253,8 +268,8 @@ A long spending list full of zeros hides the categories that moved. A category a
 ### The missing-rate count covers every number on screen
 A baseline can be lowered by missing rates just as much as the current value. Counting only the compared period would hide that.
 
-### All three baselines are shown side by side
-A picker that switched one Baseline column between mean, median and previous period gave a table that could not say which baseline it showed, and it hid the other two answers. Showing all three at once answers "is this unusual?" from several angles at a glance. Each change shares one cell with its percent, so the table stays at 8 columns, and the table scrolls inside its own box at phone width.
+### All baselines are shown side by side
+A picker that switched one Baseline column between mean, median and previous period gave a table that could not say which baseline it showed, and it hid the other answers. Showing them all at once answers "is this unusual?" from several angles at a glance. Each change shares one cell with its percent, so the table stays at 10 columns at most, and the table scrolls inside its own box at phone width.
 
 ### The median ignores zero periods
 A month with no spending in a category says little about what a typical month of that spending costs, and zeros drag the median toward 0 for anything not bought every month. The median therefore describes a typical period in which the category occurred. It needs 3 such periods per row, so one or two occurrences never pose as a typical value. The mean keeps counting zeros, because it answers a different question: the average cost per period, over all periods.

@@ -501,6 +501,42 @@ Added after Task 8, at the user's request. The spec's "Comparison", "Dashboard s
 - [ ] **Step 3: Verify and commit** `Show all baselines side by side; median ignores zero periods`.
 - [ ] **Step 4:** List the new and changed mutations for approval. At minimum: the median counts zeros again; the per-row median threshold goes from 3 to 2; the missing-rate count drops the previous period; a "vs" cell drops its percent. Then apply them and re-run the gate.
 
+### Task 10: Trailing baselines and same period last year
+
+Added after Task 9, at the user's request. `docs/specs/trailing-baselines.md` and the revised "Comparison" and "Dashboard view" sections of the phase 5 spec are the authority.
+
+**Files:**
+- Modify: `src/aggregate/period.ts` (+ `samePeriodLastYear`), `src/aggregate/compare.ts` (+ `WINDOW_SIZE`, window replaces pool, `yearAgo`), `src/ui/views/DashboardView.svelte` (headers per period type, year-ago column for months and quarters), `scripts/mutations.mjs` (M138, M139, M144 and M152 anchors)
+- Test: `tests/dashboard.test.ts`
+
+**Behavior:**
+- The window is the latest N complete periods before the compared one (6 months, 4 quarters, 3 years). It replaces the pool. Previous is the newest window period.
+- `yearAgo` is the same month or quarter a year earlier, `'insufficient'` outside the span, `null` for years.
+- The missing-rate count adds the year-ago period when it lies in the span.
+- Headers: `Mean (6 months)`, `Median (6 months)`, `Previous month`, `vs previous month`, `Same month last year`, `vs same month last year`; quarters and years likewise. Years have no year-ago column.
+
+**Expected values.** Hand-derived. Cells: Current | Mean | vs mean | Median | vs median | Previous | vs previous | Year ago | vs year ago.
+
+- **Unchanged** (the window equals the old pool): default May, June in progress, per-period totals, MIXED Spending and Income, both missing-rate tests, stale URL. The default test also asserts the new headers and an insufficient year-ago column.
+- **QUARTERS + 2023 Q4 row of 200, period 2025 Q1:** Groceries and total `40.00 | 52.50 | -12.50 (-24%) | 60.00 | -20.00 (-33%) | 0.00 | +40.00 (—) | 30.00 | +10.00 (+33%)`. The old pool would give a mean of 82.00.
+- **YEARS + 2020 row of 90, period 2024:** `300.00 | 116.67 | +183.33 (+157%) | insufficient data | (empty) | 0.00 | +300.00 (—)`, and no year-ago column. The old pool would give 110.00.
+- **MONTHS, period 2025-04:**
+  - Groceries `0.00 | 76.67 | -76.67 (-100%) | 80.00 | -80.00 (-100%) | 80.00 | -80.00 (-100%)`
+  - Transport `0.00 | 10.00 | -10.00 (-100%) | insufficient data | (empty) | 10.00 | -10.00 (-100%)`
+  - Total spending `0.00 | 86.67 | -86.67 (-100%) | 90.00 | -90.00 (-100%) | 90.00 | -90.00 (-100%)`
+  - The May spending after April would move the Groceries mean to 87.50 under the old pool.
+- **MONTHS, period 2025-03:** the window is Jan–Feb, so Groceries `80.00` and every baseline is insufficient. This replaces the 2025-01 test.
+- **Month boundary, period 2025-04:** `25.00 | 76.67 | -51.67 (-67%) | 80.00 | -55.00 (-69%) | 80.00 | -55.00 (-69%)`. May is unchanged.
+- **YEAR_AGO, today 2025-06-15, period 2025-05:** Groceries 2024-05 200, 2024-10 300, 2024-11 60, 2024-12 90, 2025-01 30, 2025-03 60, 2025-04 150, 2025-05 100.
+  - Groceries and total `100.00 | 65.00 | +35.00 (+54%) | 60.00 | +40.00 (+67%) | 150.00 | -50.00 (-33%) | 200.00 | -100.00 (-50%)`
+  - The old pool would give a mean of 74.17.
+- **YEAR_AGO + no-rate USD rows in 2024-05, 2024-10 and 2024-12:** `2 transactions excluded from totals: no exchange rate.`
+
+- [ ] **Step 1: Failing tests.**
+- [ ] **Step 2: Implement** and move the anchors.
+- [ ] **Step 3: Verify** with `npm run typecheck` and `npm run test:all`, then commit `Compare with trailing windows and the same period last year`.
+- [ ] **Step 4:** List the new and changed mutations for approval, apply them, re-run the gate.
+
 ## Coverage map
 
 | Spec coverage bullet | Test |

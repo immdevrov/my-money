@@ -429,14 +429,14 @@ export const MUTATIONS = [
   ['M137 a tie goes to the earlier rate', RATES,
     `afterDistance < beforeDistance`, `afterDistance <= beforeDistance`],
 
-  ['M138 pool excludes the current period', COMPARE,
-    'const pool = span.filter((candidate) => candidate !== current && candidate !== period);',
-    'const pool = span.filter((candidate) => candidate !== period && current === current);'],
-  ['M139 pool excludes the compared period', COMPARE,
-    'const pool = span.filter((candidate) => candidate !== current && candidate !== period);',
-    'const pool = span.filter((candidate) => candidate !== current);'],
+  ['M138 window holds only earlier periods', COMPARE,
+    'span.filter((candidate) => candidate < period)',
+    'span.filter((candidate) => candidate !== period)'],
+  ['M139 window excludes the compared period', COMPARE,
+    'span.filter((candidate) => candidate < period)',
+    'span.filter((candidate) => candidate <= period)'],
   ['M140 baseline threshold is 3 periods', COMPARE,
-    'const MIN_POOL = 3;', 'const MIN_POOL = 2;'],
+    'const MIN_WINDOW = 3;', 'const MIN_WINDOW = 2;'],
   ['M141 mean zero-fills empty periods', COMPARE,
     `  return roundedDivide(
     values.reduce((sum, value) => sum + value, 0),
@@ -455,13 +455,13 @@ export const MUTATIONS = [
   ['M143 median averages the two middle values', COMPARE,
     'return roundedDivide((sorted[middle - 1] ?? 0) + (sorted[middle] ?? 0), 2);',
     'return sorted[middle] ?? 0;'],
-  ['M144 previous must lie inside the span', COMPARE,
-    'const previous = inSpan.has(previousCandidate) ? previousCandidate : null;',
-    'const previous = (inSpan.has(previousCandidate) || true) ? previousCandidate : null;'],
+  ['M144 previous is the newest window period', COMPARE,
+    'valueAt(sums, scope.window[0])',
+    'valueAt(sums, scope.window[1])'],
   ['M145 total baseline from per-period totals', COMPARE,
     'const total = comparisonRow(null, TOTAL_NAMES[tab], buckets.total, scope);',
     `const perPeriod = comparisonRow(null, TOTAL_NAMES[tab], buckets.total, scope);
-  const summed = (key: Baseline) => baselineResult(perPeriod.current, scope.sufficient
+  const summed = (key: 'mean' | 'median' | 'previous') => baselineResult(perPeriod.current, scope.sufficient
     ? rows.reduce((sum, row) => sum + (({ value }) => (value === 'insufficient' ? 0 : value))(row[key]), 0)
     : 'insufficient');
   const total = { ...perPeriod, mean: summed('mean'), median: summed('median'), previous: summed('previous') };`],
@@ -484,8 +484,11 @@ export const MUTATIONS = [
     'const rowPeriod = periodOf(row.effectiveDate, type);',
     'const rowPeriod = periodOf(row.postingDate, type);'],
   ['M152 row visibility uses current or baseline', COMPARE,
-    `  const baselines = [row.mean, row.median, row.previous];
-  return row.current !== 0 || baselines.some((result) => result.value !== 'insufficient' && result.value !== 0);`,
+    `  const baselines = [row.mean, row.median, row.previous, row.yearAgo];
+  return (
+    row.current !== 0 ||
+    baselines.some((result) => result !== null && result.value !== 'insufficient' && result.value !== 0)
+  );`,
     '  return row.current !== 0;'],
   ['M153 rows sort by current descending', COMPARE,
     'rows.sort((a, b) => b.current - a.current || a.name.localeCompare(b.name));',

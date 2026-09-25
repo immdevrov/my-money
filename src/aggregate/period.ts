@@ -67,6 +67,10 @@ export function previousPeriod(period: string): string {
   return month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, '0')}`;
 }
 
+export function samePeriodLastYear(period: string): string {
+  return `${Number(period.slice(0, 4)) - 1}${period.slice(4)}`;
+}
+
 export function periodsInSpan(earliest: string, today: string, type: PeriodType): string[] {
   const first = periodOf(earliest, type);
   const periods: string[] = [];

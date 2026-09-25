@@ -2,6 +2,7 @@
   import { liveQuery } from 'dexie';
   import {
     compare,
+    WINDOW_SIZE,
     type Baseline,
     type BaselineResult,
     type ComparisonRow,
@@ -21,12 +22,9 @@
   type Tab = 'spending' | 'income';
   type QueryKey = 'type' | 'period' | 'tab';
 
+  type BaselineColumn = { baseline: Baseline; label: string; vsLabel: string };
+
   const PERIOD_TYPES: readonly string[] = ['month', 'quarter', 'year'];
-  const BASELINE_COLUMNS: readonly { baseline: Baseline; label: string; vsLabel: string }[] = [
-    { baseline: 'mean', label: 'Mean', vsLabel: 'vs mean' },
-    { baseline: 'median', label: 'Median', vsLabel: 'vs median' },
-    { baseline: 'previous', label: 'Previous period', vsLabel: 'vs previous period' },
-  ];
   const TABS: readonly string[] = ['spending', 'income'];
 
   const transactions = liveQuery(async () => listAll());
@@ -53,6 +51,24 @@
     PERIOD_TYPES.includes(query.type) ? (query.type as PeriodType) : 'month',
   );
   const activeTab = $derived(TABS.includes(query.tab) ? (query.tab as Tab) : 'spending');
+
+  const baselineColumns = $derived.by((): BaselineColumn[] => {
+    const noun = periodType;
+    const window = `${WINDOW_SIZE[periodType]} ${noun}s`;
+    const columns: BaselineColumn[] = [
+      { baseline: 'mean', label: `Mean (${window})`, vsLabel: 'vs mean' },
+      { baseline: 'median', label: `Median (${window})`, vsLabel: 'vs median' },
+      { baseline: 'previous', label: `Previous ${noun}`, vsLabel: `vs previous ${noun}` },
+    ];
+    if (periodType !== 'year') {
+      columns.push({
+        baseline: 'yearAgo',
+        label: `Same ${noun} last year`,
+        vsLabel: `vs same ${noun} last year`,
+      });
+    }
+    return columns;
+  });
 
   let spendingTabEl = $state<HTMLButtonElement | null>(null);
   let incomeTabEl = $state<HTMLButtonElement | null>(null);
@@ -221,7 +237,7 @@
         <tr>
           <th scope="col">Category</th>
           <th scope="col" class="number">Current</th>
-          {#each BASELINE_COLUMNS as column (column.baseline)}
+          {#each baselineColumns as column (column.baseline)}
             <th scope="col" class="number">{column.label}</th>
             <th scope="col" class="number">{column.vsLabel}</th>
           {/each}
@@ -243,12 +259,14 @@
   <tr>
     <th scope="row"><a {href}>{row.name}</a></th>
     <td class="number">{formatMinor(row.current)}</td>
-    {#each BASELINE_COLUMNS as column (column.baseline)}
+    {#each baselineColumns as column (column.baseline)}
       {@const result = row[column.baseline]}
-      <td class="number">
-        {result.value === 'insufficient' ? 'insufficient data' : formatMinor(result.value)}
-      </td>
-      <td class="number">{vsText(result)}</td>
+      {#if result !== null}
+        <td class="number">
+          {result.value === 'insufficient' ? 'insufficient data' : formatMinor(result.value)}
+        </td>
+        <td class="number">{vsText(result)}</td>
+      {/if}
     {/each}
   </tr>
 {/snippet}

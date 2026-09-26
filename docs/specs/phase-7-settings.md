@@ -103,7 +103,7 @@ A file input labelled `Restore from backup`.
    - Not JSON: `This file is not valid JSON.`
    - JSON without `format: 'budget-my-backup'`: `This file is not a budget-my backup.`
    - A `version` above 1: `This backup is version {N}; this app reads version 1.`
-   - A missing or non-string `exportedAt`: `This backup is damaged: exportedAt is invalid.`
+   - A missing, non-string or unreadable `exportedAt`: `This backup is damaged: exportedAt is invalid.`
    - A missing table, or one that is not an array (an object for `manualRates`): `This backup is damaged: {table} is missing.`
    - A record without the fields and types its table needs: `This backup is damaged: {table} entry {i} is invalid.`, where `i` counts from 1, in key order for `manualRates`. The table is named `transactions`, `importBatches`, `categories`, `rules` or `manualRates`.
 2. On success, a modal dialog asks: `Replace all data with this backup? It holds {T} transactions, {C} categories and {R} rules. Your current {M} transactions will be replaced.` with the buttons `Restore` and `Cancel`.

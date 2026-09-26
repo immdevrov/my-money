@@ -156,7 +156,9 @@ export function parseBackup(
   if (!isObject(root) || root.format !== BACKUP_FORMAT) return failure({ code: 'not-a-backup' });
   if (typeof root.version !== 'number') return failure({ code: 'not-a-backup' });
   if (root.version > BACKUP_VERSION) return failure({ code: 'newer-version', version: root.version });
-  if (!isString(root.exportedAt)) return failure({ code: 'invalid-exported-at' });
+  if (!isString(root.exportedAt) || Number.isNaN(Date.parse(root.exportedAt))) {
+    return failure({ code: 'invalid-exported-at' });
+  }
 
   const transactions = readList(root, 'transactions', readTransaction);
   if (!transactions.ok) return transactions;

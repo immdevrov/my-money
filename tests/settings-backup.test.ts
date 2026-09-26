@@ -1,6 +1,7 @@
 import { expect, test } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import App from '../src/App.svelte';
+import CategoriesView from '../src/ui/views/CategoriesView.svelte';
 import SettingsView from '../src/ui/views/SettingsView.svelte';
 import TransactionsView from '../src/ui/views/TransactionsView.svelte';
 import { captureDownload } from './helpers/captureDownload';
@@ -159,6 +160,7 @@ type Recorded = {
   choices: string[];
   categories: string[];
   rules: string[];
+  imports: string[];
   rate: string;
 };
 
@@ -175,6 +177,7 @@ async function expectRecorded(screen: Screen, recorded: Recorded) {
 
   await screen.getByRole('link', { name: 'Settings' }).click();
   await expect.element(screen.getByLabelText('Manual rate for USD')).toHaveValue(recorded.rate);
+  await expect.poll(() => rowTexts(screen, 'Imports')).toEqual(recorded.imports);
 }
 
 test('a backup restores everything identically, and it survives a reload', ROUND_TRIP, async () => {
@@ -188,6 +191,8 @@ test('a backup restores everything identically, and it survives a reload', ROUND
   const rateInput = screen.getByLabelText('Manual rate for USD');
   await expect.element(rateInput).toHaveValue('2.5');
   const rate = (rateInput.element() as HTMLInputElement).value;
+  await expect.element(tableRows(screen, 'Imports')).toHaveLength(2);
+  const imports = rowTexts(screen, 'Imports');
 
   await screen.getByRole('link', { name: 'Transactions' }).click();
   const alphaSelect = screen.getByRole('combobox', { name: 'Category for Shop Alpha' });
@@ -211,7 +216,7 @@ test('a backup restores everything identically, and it survives a reload', ROUND
   await expect.element(tableRows(screen, 'Rules')).toHaveLength(2);
   const rules = rowTexts(screen, 'Rules');
 
-  const recorded: Recorded = { transactions, choices, categories, rules, rate };
+  const recorded: Recorded = { transactions, choices, categories, rules, imports, rate };
 
   await screen.getByRole('link', { name: 'Settings' }).click();
   const file = await exportBackup(screen);
@@ -280,6 +285,10 @@ const REFUSED: [string, string][] = [
     'This backup is damaged: exportedAt is invalid.',
   ],
   [
+    '{"format":"budget-my-backup","version":1,"exportedAt":"yesterday","transactions":[],"importBatches":[],"categories":[],"rules":[],"manualRates":{}}',
+    'This backup is damaged: exportedAt is invalid.',
+  ],
+  [
     '{"format":"budget-my-backup","version":1,"exportedAt":"2025-06-15T08:00:00.000Z","transactions":[],"importBatches":[],"categories":[],"manualRates":{}}',
     'This backup is damaged: rules is missing.',
   ],
@@ -309,7 +318,9 @@ test('a restore that fails leaves the data intact', SLOW, async () => {
   const exported = await exportBackup(screen);
   const backup = JSON.parse(await exported.text());
   backup.transactions.push({ ...backup.transactions[0] });
+  await importRows([ALPHA_PAYMENT], OPTIONS);
 
+  screen = await render(SettingsView);
   await restore(
     screen,
     new File([JSON.stringify(backup)], 'dup.json', { type: 'application/json' }),
@@ -319,5 +330,39 @@ test('a restore that fails leaves the data intact', SLOW, async () => {
     .toHaveTextContent(/^The backup could not be restored: /);
 
   screen = await remount(TransactionsView);
-  await expect.element(tableRows(screen, 'Transactions')).toHaveLength(2);
+  await expect.element(tableRows(screen, 'Transactions')).toHaveLength(3);
+  await expect.element(screen.getByRole('cell', { name: /^Alpha payment$/ })).toBeVisible();
+});
+
+test('a backup without Currency conversion gets it back on restore', SLOW, async () => {
+  const backup = {
+    format: 'budget-my-backup',
+    version: 1,
+    exportedAt: '2025-06-15T08:00:00.000Z',
+    transactions: [
+      {
+        id: 'backup-row-1',
+        postingDate: '2025-02-05',
+        currency: 'GEL',
+        amountMinor: -100,
+        details: 'Alpha payment',
+        importBatchId: 'backup-batch-1',
+        manualCategoryId: null,
+      },
+    ],
+    importBatches: [],
+    categories: [],
+    rules: [],
+    manualRates: {},
+  };
+  let screen = await render(SettingsView);
+  await restore(
+    screen,
+    new File([JSON.stringify(backup)], 'no-conversion.json', { type: 'application/json' }),
+  );
+  await expect.element(screen.getByRole('status')).toHaveTextContent(/^Backup restored\.$/);
+
+  screen = await remount(CategoriesView);
+  await expect.element(tableRows(screen, 'Categories')).toHaveLength(2);
+  await expect.element(screen.getByRole('cell', { name: /^Currency conversion$/ })).toBeVisible();
 });

@@ -103,7 +103,9 @@ A file input labelled `Restore from backup`.
    - Not JSON: `This file is not valid JSON.`
    - JSON without `format: 'budget-my-backup'`: `This file is not a budget-my backup.`
    - A `version` above 1: `This backup is version {N}; this app reads version 1.`
-   - A missing table, or a record without the fields and types its table needs: `This backup is damaged: {table} entry {i} is invalid.`, where `i` counts from 1. The table is named `transactions`, `importBatches`, `categories`, `rules` or `manualRates`.
+   - A missing or non-string `exportedAt`: `This backup is damaged: exportedAt is invalid.`
+   - A missing table, or one that is not an array (an object for `manualRates`): `This backup is damaged: {table} is missing.`
+   - A record without the fields and types its table needs: `This backup is damaged: {table} entry {i} is invalid.`, where `i` counts from 1, in key order for `manualRates`. The table is named `transactions`, `importBatches`, `categories`, `rules` or `manualRates`.
 2. On success, a modal dialog asks: `Replace all data with this backup? It holds {T} transactions, {C} categories and {R} rules. Your current {M} transactions will be replaced.` with the buttons `Restore` and `Cancel`.
 3. `Restore` runs one `rw` transaction over every table: it clears them all, then adds the backup's rows and its `manualRates`, and sets `lastBackupAt` to `exportedAt`. If the backup has no Currency conversion category, it is re-seeded, because pairing's category assignment depends on it.
 4. Then the view shows `Backup restored.` If the transaction fails, for example on a duplicate id, the old data is intact and the view shows `The backup could not be restored: {message}`.
@@ -156,11 +158,12 @@ tests/helpers/captureDownload.ts
 tests/settings-rates.test.ts
 tests/settings-backup.test.ts
 tests/settings-imports.test.ts
+tests/settings-wipe.test.ts
 ```
 
 ## Test helper
 
-`captureDownload()` in `tests/helpers/captureDownload.ts` spies on `URL.createObjectURL` and returns a function that resolves the Blob the app handed to it, together with the download's file name, taken from the `download` attribute of the anchor the app clicks. The anchor's click is prevented, so no real download starts.
+`captureDownload()` in `tests/helpers/captureDownload.ts` spies on `URL.createObjectURL` and on anchor clicks, and returns a function that resolves a `File` holding the Blob the app handed to `createObjectURL`, named by the `download` attribute of the anchor the app clicked. The click is not passed through, so no real download starts. The test can upload that `File` as it is.
 
 ## Required behavior coverage
 

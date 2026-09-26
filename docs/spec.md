@@ -98,7 +98,7 @@ Conversion pairing:
 Rates:
 - The rate table is derived from conversion pairs as (date, currency, rate), where rate = GEL per 1 unit of the foreign currency.
 - A non-GEL transaction converts at the rate for that currency nearest its `effectiveDate`. Candidates are the nearest rate on or before that date, and the nearest later one within the same calendar month. A tie goes to the earlier rate. From phase 5; see `docs/specs/phase-5-dashboard.md`.
-- Fallback: a manual rate per currency in Settings.
+- Fallback: a manual rate per currency in Settings, used only where no conversion pair gives a rate, and marked on every amount it prices. From phase 7; see `docs/specs/phase-7-settings.md`.
 - A non-GEL transaction with no available rate:
   - Shows a missing-rate marker in the GEL column.
   - Is excluded from totals.
@@ -145,7 +145,7 @@ Rule {
 
 ImportBatch { id, fileName, importedAt, counts }
 
-Settings { baseCurrency: 'GEL', manualRates: Record<currency, number> }
+Settings: manualRates (currency → scaled rate), lastBackupAt. The base currency is the constant GEL.
 ```
 - `counterparty` values:
   - card → merchant
@@ -203,7 +203,7 @@ Specified in `docs/specs/phase-5-dashboard.md`. In short:
    - Count of transactions excluded from totals for missing rates.
    - Grouped bar chart per category (current vs mean). Clicking a bar uses the same drill-down handler as the table row. From phase 6; see `docs/specs/phase-6-charts.md`.
    - Line chart of monthly income and expense over the full history, with its own missing-rate count.
-6. **Settings:** manual currency rates, full DB export/import as JSON, import batch list with delete, wipe all data.
+6. **Settings** (phase 7 in `docs/specs/phase-7-settings.md`): manual currency rates, full DB export and restore as JSON with the time since the last backup, import batch list with delete, wipe all data.
 
 ## Build phases
 1. Scaffold, app shell with hash routing and stub views, design tokens, Vitest projects (`behavior`, `scratch`), `tests/setup.ts` and helpers, synthetic fixture generator, domain types, import module, Import view with parsed preview (no persistence yet).
@@ -254,11 +254,7 @@ Phase 5, comparison: see `docs/specs/phase-5-dashboard.md`.
 
 Phase 6, charts: see `docs/specs/phase-6-charts.md`.
 
-Phase 7, settings:
-- A manual rate replaces missing-rate markers and updates totals.
-- Export (via `captureDownload()`), then wipe, then upload the captured file restores transactions, categories, and rules identically.
-- Deleting an import batch removes only its rows.
-- Wipe leaves the app in its empty state.
+Phase 7, settings: see `docs/specs/phase-7-settings.md`.
 
 ## Decisions
 

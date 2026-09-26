@@ -128,29 +128,31 @@ test('a tab with no category rows has no chart', SLOW, async () => {
 
 test('the monthly chart plots every month of the history', SLOW, async () => {
   freezeDate('2025-06-15T12:00:00');
-  await importRows(MIXED, MIXED_OPTIONS);
+  await importRows([...MIXED, ['10/11/2024', 'Grocer Nov 24', -30, null]], MIXED_OPTIONS);
   await categorize(MIXED_CATEGORIES);
 
   const screen = await render(DashboardView);
   const chart = 'Monthly spending and income';
 
   await expectHeader(screen, chart, ['Month', 'Spending', 'Income']);
-  await expectChartRow(screen, chart, 1, ['2025-01', '120.00', '0.00']);
-  await expectChartRow(screen, chart, 2, ['2025-02', '50.00', '0.00']);
-  await expectChartRow(screen, chart, 3, ['2025-03', '90.00', '1500.00']);
-  await expectChartRow(screen, chart, 4, ['2025-04', '0.00', '1500.00']);
-  await expectChartRow(screen, chart, 5, ['2025-05', '147.00', '1505.00']);
-  await expectChartRow(screen, chart, 6, ['2025-06 (in progress)', '40.00', '0.00']);
-  await expectRowCount(screen, chart, 7);
+  await expectChartRow(screen, chart, 1, ['2024-11', '30.00', '0.00']);
+  await expectChartRow(screen, chart, 2, ['2024-12', '0.00', '0.00']);
+  await expectChartRow(screen, chart, 3, ['2025-01', '120.00', '0.00']);
+  await expectChartRow(screen, chart, 4, ['2025-02', '50.00', '0.00']);
+  await expectChartRow(screen, chart, 5, ['2025-03', '90.00', '1500.00']);
+  await expectChartRow(screen, chart, 6, ['2025-04', '0.00', '1500.00']);
+  await expectChartRow(screen, chart, 7, ['2025-05', '147.00', '1505.00']);
+  await expectChartRow(screen, chart, 8, ['2025-06 (in progress)', '40.00', '0.00']);
+  await expectRowCount(screen, chart, 9);
   await expect.element(screen.getByText(/excluded from monthly totals/)).not.toBeInTheDocument();
 
   const periodType = screen.getByLabelText(/^Period type$/);
   await periodType.selectOptions(periodType.getByRole('option', { name: 'Year' }));
-  await expect.element(screen.getByLabelText(/^Period$/)).toHaveDisplayValue('2025 (in progress)');
+  await expect.element(screen.getByLabelText(/^Period$/)).toHaveDisplayValue('2024');
 
-  await expectChartRow(screen, chart, 1, ['2025-01', '120.00', '0.00']);
-  await expectChartRow(screen, chart, 5, ['2025-05', '147.00', '1505.00']);
-  await expectRowCount(screen, chart, 7);
+  await expectChartRow(screen, chart, 1, ['2024-11', '30.00', '0.00']);
+  await expectChartRow(screen, chart, 7, ['2025-05', '147.00', '1505.00']);
+  await expectRowCount(screen, chart, 9);
 });
 
 test('charts re-render in the dark color scheme', SLOW, async () => {

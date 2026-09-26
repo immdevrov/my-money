@@ -61,7 +61,7 @@ tests/         behavior tests, setup file, helpers
   import/      import tests, split out of the default run
 fixtures/      generated synthetic fixtures (gitignored), expected values
 scripts/       synthetic fixture generator
-scratch/       last-resort temporary tests (gitignored, deleted every phase)
+scratch/       last-resort temporary tests and mutation lists (gitignored, deleted every phase)
 docs/          specs and plans
 ```
 - `ui` and `db` may import domain modules.
@@ -79,7 +79,7 @@ docs/          specs and plans
   - `behavior`: `tests/**/*.test.ts` except `tests/import/**`, Browser Mode. `npm test` runs only this project, and needs no fixtures.
   - `import`: `tests/import/**/*.test.ts`, Browser Mode. Runs with `npm run test:import`, which regenerates fixtures first.
   - `scratch`: `scratch/**`, Node environment or Browser Mode, `passWithNoTests`. Runs with `npm run test:scratch`.
-- `npm run test:all` runs `behavior` and `import` together without regenerating fixtures. It is the gate for a phase and what the mutation harness runs.
+- `npm run test:all` runs `behavior` and `import` together without regenerating fixtures. It is the gate for a phase.
 - Import parsing is settled, so its tests are split out of the default loop rather than paid for on every run. They are not optional: anything touching `src/import/` is verified with `npm run test:all`, never `npm test` alone.
 
 ### Permanent suite: behavior tests, integration-scoped
@@ -133,7 +133,10 @@ docs/          specs and plans
 ### Mutation testing
 A mutation proofreads a test: break the behavior the test covers in `src/`, confirm that test fails, restore the code. It is a check on the tests, nothing more, and it is never the headline of a report.
 
-- Mutations secure **new or changed tests**. A change does not re-run every phase's mutations — run the ones targeting the behavior the change actually touched. `npm run mutate` runs the whole list, for when that is genuinely wanted; it is not a gate on every edit.
+Mutations are not code. The list for a change is written to `scratch/`, run with the `mutation-testing` skill's runner, and deleted with `scratch/`.
+
+- Mutations secure **new or changed tests**. Earlier mutations are never re-run: a proven test stays proven until the logic around it changes, and that change brings its own mutations.
+- Mutations targeting `tests/import/` need the fixtures: run `npm run fixtures` first.
 - Every new or changed test gets at least one mutation that breaks, in `src/`, the behavior that test asserts.
 - Each mutation changes exactly one thing and must still pass typecheck.
 - Kinds of mutation to apply, wherever the code has them:
@@ -143,12 +146,11 @@ A mutation proofreads a test: break the behavior the test covers in `src/`, conf
   - Data flow: swap `effectiveDate` and `postingDate`, skip dedup, skip zero-filling, skip transfer exclusion, return early or return empty.
   - Parsing: loosen or tighten a matcher, extract the wrong field or segment.
   - UI: drop a filter predicate, render a wrong column value, pass a wrong drill-down parameter.
-- A mutation counts as caught only when a test assertion fails. If only an uncaught error or `console.error` catches it, add an assertion that catches the behavior change.
-- A mutation the suite does not catch is resolved in one of two ways:
+- A mutation counts as caught only when an assertion in the test it targets fails. If only an uncaught error or `console.error` catches it, add an assertion that catches the behavior change.
+- A mutation its targeted test does not catch is resolved in one of two ways:
   - Add or strengthen a behavior test until it is caught.
   - Record it as an equivalent mutation, with the reasoning, in the phase report.
 - Never weaken or drop a mutation to get a clean result.
-- Keep an anchor honest when the code it points at moves, so the list does not rot.
 
 ## Working rules
 - Implement one phase per session. Do not start the next phase unprompted.

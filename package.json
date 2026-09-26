@@ -14,9 +14,7 @@
     "test:import": "vitest run --project import",
     "pretest:all": "npm run fixtures",
     "test:all": "vitest run --project behavior --project import",
-    "test:mutate": "vitest run --project behavior --project import",
-    "test:scratch": "vitest run --project scratch --passWithNoTests",
-    "mutate": "npm run fixtures && node scripts/mutate.mjs"
+    "test:scratch": "vitest run --project scratch --passWithNoTests"
   },
   "dependencies": {
     "dexie": "4.4.6",

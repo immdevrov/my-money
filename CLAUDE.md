@@ -36,7 +36,7 @@ This file holds only rules that apply to every session.
 ## Fixtures and privacy
 - Claude never reads the user's real bank export. The user runs imports themselves and reports what the Import view shows.
 - The repo is public. `.gitignore` ignores `*.xlsx` everywhere and `budget-my-backup-*.json`. There is no allow-list, so no statement can be committed by accident.
-- All fixtures are synthetic and generated. `npm run fixtures` regenerates every `.xlsx` in `fixtures/` from `scripts/make-fixtures.ts`, and is wired to `pretest`.
+- All fixtures are synthetic and generated. `npm run fixtures` regenerates every `.xlsx` in `fixtures/` from `scripts/make-fixtures.ts`, and runs before `test:import` and `test:all`.
 - `fixtures/statement-sample.xlsx` is the high-fidelity synthetic export: multiple sheets, header below row 0, one row per Details kind, all three date cell forms, and the deliberate failure and warning cases.
 - `fixtures/expected.json` is hand-authored, never generated.
 
@@ -79,7 +79,7 @@ docs/          specs and plans
   - `behavior`: `tests/**/*.test.ts` except `tests/import/**`, Browser Mode. `npm test` runs only this project, and needs no fixtures.
   - `import`: `tests/import/**/*.test.ts`, Browser Mode. Runs with `npm run test:import`, which regenerates fixtures first.
   - `scratch`: `scratch/**`, Node environment or Browser Mode, `passWithNoTests`. Runs with `npm run test:scratch`.
-- `npm run test:all` runs `behavior` and `import` together without regenerating fixtures. It is the gate for a phase.
+- `npm run test:all` regenerates fixtures, then runs `behavior` and `import` together. It is the gate for a phase.
 - Import parsing is settled, so its tests are split out of the default loop rather than paid for on every run. They are not optional: anything touching `src/import/` is verified with `npm run test:all`, never `npm test` alone.
 
 ### Permanent suite: behavior tests, integration-scoped

@@ -83,6 +83,9 @@ test('clearing a manual rate brings the marker back', SLOW, async () => {
   await expect.element(settings.getByLabelText('Manual rate for USD')).toHaveValue('2.5');
   await saveUsdRate(settings, '');
 
+  settings = await remount(SettingsView);
+  await expect.element(settings.getByLabelText('Manual rate for USD')).toHaveValue('');
+
   const screen = await remount(TransactionsView);
 
   await expect.element(screen.getByRole('cell', { name: /^no rate$/ })).toHaveLength(2);

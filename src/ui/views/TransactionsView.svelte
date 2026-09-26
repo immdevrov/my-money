@@ -383,7 +383,7 @@
 
   {#if filtered.length === 0}
     <p>No transactions match the filters.</p>
-  {:else}
+  {:else if $manualRates !== undefined}
     <table>
       <caption>Transactions</caption>
       <thead>

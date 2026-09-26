@@ -2,6 +2,7 @@ import { expect, test } from 'vitest';
 import { render } from 'vitest-browser-svelte';
 import App from '../src/App.svelte';
 import SettingsView from '../src/ui/views/SettingsView.svelte';
+import { captureDownload } from './helpers/captureDownload';
 import { categorize } from './helpers/categorize';
 import { importRows } from './helpers/importRows';
 import type { StatementCell } from './helpers/makeStatement';
@@ -96,6 +97,17 @@ test('cancelling a wipe keeps everything', WIPE_TIMEOUT, async () => {
     .element(screen.getByRole('table', { name: 'Imports' }).getByRole('row'))
     .toHaveLength(2);
   await expect.element(screen.getByRole('table', { name: 'Manual rates' })).toBeVisible();
+
+  const download = captureDownload();
+  await screen.getByRole('button', { name: 'Export backup' }).click();
+  const backup = JSON.parse(await (await download()).text());
+  expect(backup.transactions).toHaveLength(5);
+  expect(backup.importBatches).toHaveLength(1);
+
+  const reloaded = await remount(SettingsView);
+  await expect
+    .element(reloaded.getByRole('table', { name: 'Imports' }).getByRole('row'))
+    .toHaveLength(2);
 });
 
 test(

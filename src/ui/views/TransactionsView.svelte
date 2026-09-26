@@ -319,7 +319,9 @@
 <h1>Transactions</h1>
 
 {#if sorted.length === 0}
-  <p>No transactions yet. Import a statement to get started.</p>
+  {#if $transactions !== undefined}
+    <p>No transactions yet. Import a statement to get started.</p>
+  {/if}
 {:else}
   <div class="filters">
     <p class="field">

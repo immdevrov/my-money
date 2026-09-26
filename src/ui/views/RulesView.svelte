@@ -71,57 +71,59 @@
   </p>
 {/if}
 
-{#if ruleList.length === 0}
-  <p>No rules yet. Pick a category on a transaction to create one.</p>
-{:else}
-  <table>
-    <caption>Rules</caption>
-    <thead>
-      <tr>
-        <th scope="col">#</th>
-        <th scope="col">Field</th>
-        <th scope="col">Match</th>
-        <th scope="col">Pattern</th>
-        <th scope="col">Category</th>
-        <th scope="col">Matches</th>
-        <th scope="col">Actions</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#each ruleList as rule, index (rule.id)}
+{#if $rules !== undefined}
+  {#if ruleList.length === 0}
+    <p>No rules yet. Pick a category on a transaction to create one.</p>
+  {:else}
+    <table>
+      <caption>Rules</caption>
+      <thead>
         <tr>
-          <td>{index + 1}</td>
-          <td>{rule.field}</td>
-          <td>{rule.match}</td>
-          <td>{rule.pattern}</td>
-          <td>{categoryName(rule.categoryId)}</td>
-          <td>{matchCounts.get(rule.id) ?? 0}</td>
-          <td>
-            <button type="button" onclick={() => openEdit(rule)}>
-              Edit rule {description(rule)}
-            </button>
-            <button type="button" onclick={() => void deleteRule(rule.id)}>
-              Delete rule {description(rule)}
-            </button>
-            <button
-              type="button"
-              disabled={index === 0}
-              onclick={() => void reorderRule(rule.id, 'up')}
-            >
-              Move rule {description(rule)} up
-            </button>
-            <button
-              type="button"
-              disabled={index === ruleList.length - 1}
-              onclick={() => void reorderRule(rule.id, 'down')}
-            >
-              Move rule {description(rule)} down
-            </button>
-          </td>
+          <th scope="col">#</th>
+          <th scope="col">Field</th>
+          <th scope="col">Match</th>
+          <th scope="col">Pattern</th>
+          <th scope="col">Category</th>
+          <th scope="col">Matches</th>
+          <th scope="col">Actions</th>
         </tr>
-      {/each}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {#each ruleList as rule, index (rule.id)}
+          <tr>
+            <td>{index + 1}</td>
+            <td>{rule.field}</td>
+            <td>{rule.match}</td>
+            <td>{rule.pattern}</td>
+            <td>{categoryName(rule.categoryId)}</td>
+            <td>{matchCounts.get(rule.id) ?? 0}</td>
+            <td>
+              <button type="button" onclick={() => openEdit(rule)}>
+                Edit rule {description(rule)}
+              </button>
+              <button type="button" onclick={() => void deleteRule(rule.id)}>
+                Delete rule {description(rule)}
+              </button>
+              <button
+                type="button"
+                disabled={index === 0}
+                onclick={() => void reorderRule(rule.id, 'up')}
+              >
+                Move rule {description(rule)} up
+              </button>
+              <button
+                type="button"
+                disabled={index === ruleList.length - 1}
+                onclick={() => void reorderRule(rule.id, 'down')}
+              >
+                Move rule {description(rule)} down
+              </button>
+            </td>
+          </tr>
+        {/each}
+      </tbody>
+    </table>
+  {/if}
 {/if}
 
 <dialog bind:this={formDialogEl} aria-labelledby="rule-form-heading" onclose={onFormDialogClose}>

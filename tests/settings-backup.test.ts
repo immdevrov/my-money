@@ -103,7 +103,7 @@ async function exportBackup(screen: Screen): Promise<File> {
 }
 
 test('export downloads a dated backup of every stored table', SLOW, async () => {
-  freezeDate('2025-06-15T12:00:00');
+  freezeDate('2025-06-15T02:00:00');
   await importRows([CONVERSION_GEL, CONVERSION_USD, STREAM_JAN], OPTIONS);
   const setup = await render(SettingsView);
   await saveUsdRate(setup, '2.5');

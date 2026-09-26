@@ -2,10 +2,17 @@
   import { liveQuery } from 'dexie';
   import { foreignCurrencies } from '../../aggregate/gel';
   import { deleteBatch, listBatchesWithCounts, type BatchSummary } from '../../db/batches';
-  import { exportBackup, wipeAll } from '../../db/backup';
-  import { backupFileName, calendarDaysSince } from '../../db/backupFormat';
+  import { exportBackup, restoreBackup, wipeAll } from '../../db/backup';
+  import {
+    BACKUP_VERSION,
+    backupFileName,
+    calendarDaysSince,
+    parseBackup,
+    type BackupError,
+    type BackupFile,
+  } from '../../db/backupFormat';
   import { getLastBackupAt, getManualRates, setManualRate } from '../../db/settings';
-  import { listAll } from '../../db/transactions';
+  import { countTransactions, listAll } from '../../db/transactions';
   import { scaledFromDecimal } from '../../import/amount';
   import { formatRate } from '../../import/details/conversion';
 
@@ -67,6 +74,71 @@
     anchor.download = backupFileName(backup.exportedAt);
     anchor.click();
     URL.revokeObjectURL(url);
+  }
+
+  function backupErrorText(error: BackupError): string {
+    switch (error.code) {
+      case 'not-json':
+        return 'This file is not valid JSON.';
+      case 'not-a-backup':
+        return 'This file is not a budget-my backup.';
+      case 'newer-version':
+        return `This backup is version ${error.version}; this app reads version ${BACKUP_VERSION}.`;
+      case 'invalid-exported-at':
+        return 'This backup is damaged: exportedAt is invalid.';
+      case 'missing-table':
+        return `This backup is damaged: ${error.table} is missing.`;
+      case 'invalid-entry':
+        return `This backup is damaged: ${error.table} entry ${error.entry} is invalid.`;
+    }
+  }
+
+  let pendingRestore = $state.raw<{ backup: BackupFile; currentTransactions: number } | null>(
+    null,
+  );
+  let restoreDialogEl = $state<HTMLDialogElement | null>(null);
+  let restoreOutcome = $state<{ ok: boolean; text: string } | null>(null);
+
+  $effect(() => {
+    const dialogEl = restoreDialogEl;
+    if (!dialogEl) return;
+    if (pendingRestore && !dialogEl.open) dialogEl.showModal();
+    else if (!pendingRestore && dialogEl.open) dialogEl.close();
+  });
+
+  async function chooseBackup(event: Event & { currentTarget: HTMLInputElement }) {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    restoreOutcome = null;
+    const parsed = parseBackup(await file.text());
+    if (!parsed.ok) {
+      restoreOutcome = { ok: false, text: backupErrorText(parsed.error) };
+      return;
+    }
+    pendingRestore = { backup: parsed.backup, currentTransactions: await countTransactions() };
+  }
+
+  async function confirmRestore() {
+    if (!pendingRestore) return;
+    const { backup } = pendingRestore;
+    pendingRestore = null;
+    try {
+      await restoreBackup(backup);
+      restoreOutcome = { ok: true, text: 'Backup restored.' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      restoreOutcome = { ok: false, text: `The backup could not be restored: ${message}` };
+    }
+  }
+
+  function cancelRestore() {
+    pendingRestore = null;
+  }
+
+  function onRestoreDialogClose() {
+    if (pendingRestore) cancelRestore();
   }
 
   const imports = liveQuery(async () => listBatchesWithCounts());
@@ -185,7 +257,31 @@
   {#if $lastBackupAt !== undefined}
     <p>{lastBackupText($lastBackupAt)}</p>
   {/if}
+  <p class="restore">
+    <label for="restore-file">Restore from backup</label>
+    <input id="restore-file" type="file" accept=".json,application/json" onchange={chooseBackup} />
+  </p>
+  {#if restoreOutcome}
+    {#if restoreOutcome.ok}
+      <p role="status">{restoreOutcome.text}</p>
+    {:else}
+      <p class="error" role="alert">{restoreOutcome.text}</p>
+    {/if}
+  {/if}
 </section>
+
+<dialog bind:this={restoreDialogEl} aria-labelledby="restore-dialog-heading" onclose={onRestoreDialogClose}>
+  <h2 id="restore-dialog-heading">Restore backup</h2>
+  {#if pendingRestore}
+    <p>
+      Replace all data with this backup? It holds {pendingRestore.backup.transactions.length} transactions,
+      {pendingRestore.backup.categories.length} categories and {pendingRestore.backup.rules.length} rules.
+      Your current {pendingRestore.currentTransactions} transactions will be replaced.
+    </p>
+  {/if}
+  <button type="button" onclick={confirmRestore}>Restore</button>
+  <button type="button" onclick={cancelRestore} autofocus>Cancel</button>
+</dialog>
 
 <section aria-labelledby="imports-heading">
   <h2 id="imports-heading">Imports</h2>
@@ -268,6 +364,17 @@
 
   .rate input {
     width: 10ch;
+  }
+
+  .restore {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .restore input {
+    max-width: 100%;
   }
 
   .error {

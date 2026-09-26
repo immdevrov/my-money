@@ -17,6 +17,11 @@ export async function putMany(rows: StoredTransaction[]): Promise<void> {
   await db.transactions.bulkPut(rows);
 }
 
+export async function countTransactions(): Promise<number> {
+  await openDatabase();
+  return db.transactions.count();
+}
+
 export async function listAll(): Promise<Transaction[]> {
   await openDatabase();
   const [stored, rules] = await Promise.all([db.transactions.toArray(), db.rules.toArray()]);

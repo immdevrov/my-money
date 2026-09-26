@@ -102,6 +102,8 @@ export type CategorySource = 'system' | 'rule' | 'manual';
 
 export type CategoryType = 'expense' | 'income' | 'transfer' | 'ignore';
 
+export const CATEGORY_TYPES: readonly CategoryType[] = ['expense', 'income', 'transfer', 'ignore'];
+
 export type Category = {
   id: string;
   name: string;
@@ -111,6 +113,9 @@ export type Category = {
 
 export type RuleField = 'counterparty' | 'mcc' | 'details' | 'kind';
 export type RuleMatch = 'equals' | 'contains' | 'regex';
+
+export const RULE_FIELDS: readonly RuleField[] = ['counterparty', 'mcc', 'details', 'kind'];
+export const RULE_MATCHES: readonly RuleMatch[] = ['equals', 'contains', 'regex'];
 
 export type Rule = {
   id: string;

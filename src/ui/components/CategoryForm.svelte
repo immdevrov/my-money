@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { CURRENCY_CONVERSION_ID } from '../../categorize/seed';
-  import type { Category, CategoryType } from '../../domain/types';
+  import { CATEGORY_TYPES, type Category, type CategoryType } from '../../domain/types';
   import { PALETTE } from '../palette';
 
   let {
@@ -62,10 +62,9 @@
   <p class="field">
     <label for="category-type">Type</label>
     <select id="category-type" bind:value={type} disabled={typeDisabled}>
-      <option value="expense">expense</option>
-      <option value="income">income</option>
-      <option value="transfer">transfer</option>
-      <option value="ignore">ignore</option>
+      {#each CATEGORY_TYPES as option (option)}
+        <option value={option}>{option}</option>
+      {/each}
     </select>
   </p>
   <p class="field">

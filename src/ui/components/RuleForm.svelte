@@ -2,7 +2,14 @@
   import { untrack } from 'svelte';
   import { patternError } from '../../categorize/validate';
   import type { RuleDraft } from '../../db/rules';
-  import type { Category, Rule, RuleField, RuleMatch } from '../../domain/types';
+  import {
+    RULE_FIELDS,
+    RULE_MATCHES,
+    type Category,
+    type Rule,
+    type RuleField,
+    type RuleMatch,
+  } from '../../domain/types';
 
   let {
     rule,
@@ -23,9 +30,6 @@
     count?: number | undefined;
     ondraftchange?: ((draft: RuleDraft) => void) | undefined;
   } = $props();
-
-  const FIELDS: RuleField[] = ['counterparty', 'mcc', 'details', 'kind'];
-  const MATCHES: RuleMatch[] = ['equals', 'contains', 'regex'];
 
   let field = $state<RuleField>(untrack(() => rule?.field ?? basedOn?.[0]?.field ?? 'counterparty'));
   let match = $state<RuleMatch>(untrack(() => rule?.match ?? 'equals'));
@@ -83,7 +87,7 @@
     <p class="field">
       <label for="rule-field">Field</label>
       <select id="rule-field" bind:value={field}>
-        {#each FIELDS as option (option)}
+        {#each RULE_FIELDS as option (option)}
           <option value={option}>{option}</option>
         {/each}
       </select>
@@ -91,7 +95,7 @@
     <p class="field">
       <label for="rule-match">Match</label>
       <select id="rule-match" bind:value={match}>
-        {#each MATCHES as option (option)}
+        {#each RULE_MATCHES as option (option)}
           <option value={option}>{option}</option>
         {/each}
       </select>

@@ -12,8 +12,10 @@
     dashboardPeriods,
     localToday,
     periodLabel,
+    periodOf,
     type PeriodType,
   } from '../../aggregate/period';
+  import { monthlyTotals } from '../../aggregate/monthly';
   import { listCategories } from '../../db/categories';
   import { listAll } from '../../db/transactions';
   import { formatMinor } from '../../import/amount';
@@ -114,9 +116,27 @@
     });
   }
 
-  function missingRateText(n: number): string {
+  const monthly = $derived.by(() => {
+    const rows = $transactions;
+    const cats = $categories;
+    if (rows === undefined || cats === undefined || rows.length === 0) return null;
+
+    const today = localToday(new Date());
+    const current = periodOf(today, 'month');
+    const { months, missingRate } = monthlyTotals({ rows, categories: cats, today });
+    const labels = months.map(({ month }) =>
+      month === current ? `${periodLabel(month)} (in progress)` : periodLabel(month),
+    );
+    const series: ChartSeries[] = [
+      { label: 'Spending', values: months.map((total) => total.spending), color: '--chart-spending' },
+      { label: 'Income', values: months.map((total) => total.income), color: '--chart-income' },
+    ];
+    return { labels, series, missingRate };
+  });
+
+  function missingRateText(n: number, totals = 'totals'): string {
     const noun = n === 1 ? 'transaction' : 'transactions';
-    return `${n} ${noun} excluded from totals: no exchange rate.`;
+    return `${n} ${noun} excluded from ${totals}: no exchange rate.`;
   }
 
   function vsText({ delta, deltaPct }: BaselineResult): string {
@@ -248,6 +268,19 @@
       {@render categoryChart('Income by category', '--chart-income', view.income, view.period)}
       {@render comparisonTable('Income comparison', view.income, view.period)}
     </div>
+  {/if}
+
+  {#if monthly}
+    <Chart
+      kind="line"
+      name="Monthly spending and income"
+      labelHeader="Month"
+      labels={monthly.labels}
+      series={monthly.series}
+    />
+    {#if monthly.missingRate > 0}
+      <p>{missingRateText(monthly.missingRate, 'monthly totals')}</p>
+    {/if}
   {/if}
 {/if}
 

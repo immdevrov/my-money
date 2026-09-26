@@ -27,6 +27,13 @@ export const MIXED: StatementCell[][] = [
   ['10/05/2025', 'Payment - Amount USD100.00; Foreign Exchange. FX Rate:2.735', null, -100],
 ];
 
+export const MISSING_RATE_SHORT_POOL: StatementCell[][] = [
+  ['10/03/2025', 'Grocer Mar', -80, null],
+  ['12/04/2025', 'Payment - Amount: USD4.00; Merchant: Grocer Sigma, Online; MCC:1001', null, -4],
+  ['10/05/2025', 'Grocer May', -120, null],
+  ['12/05/2025', 'Payment - Amount: USD9.00; Merchant: Grocer Sigma, Online; MCC:1001', null, -9],
+];
+
 export const MIXED_CATEGORIES = [
   { name: 'Groceries', contains: 'Grocer' },
   { name: 'Transport', contains: 'Taxi' },

@@ -1,5 +1,6 @@
 import type { Category, Transaction } from '../domain/types';
-import { gelAmount, rateTableFrom } from './gel';
+import { countRow, type Tab } from './count';
+import { rateTableFrom } from './gel';
 import { dashboardPeriods, periodOf, samePeriodLastYear, type PeriodType } from './period';
 
 export type Baseline = 'mean' | 'median' | 'previous' | 'yearAgo';
@@ -33,8 +34,6 @@ export type Comparison = {
   missingRate: number;
 };
 
-type Tab = 'spending' | 'income';
-
 type PeriodSums = Map<string, number>;
 
 type TabBuckets = {
@@ -62,17 +61,6 @@ function roundedDivide(numerator: number, denominator: number): number {
     return quotient + Math.sign(numerator) * Math.sign(denominator);
   }
   return quotient;
-}
-
-function tabOf(row: Transaction, category: Category | undefined): Tab | null {
-  if (category === undefined) {
-    if (row.amountMinor < 0) return 'spending';
-    if (row.amountMinor > 0) return 'income';
-    return null;
-  }
-  if (category.type === 'expense') return 'spending';
-  if (category.type === 'income') return 'income';
-  return null;
 }
 
 function addTo(sums: PeriodSums, period: string, amount: number) {
@@ -197,20 +185,16 @@ export function compare(input: {
     const rowPeriod = periodOf(row.effectiveDate, type);
     if (!inSpan.has(rowPeriod)) continue;
 
-    const category = row.categoryId === null ? undefined : categories.get(row.categoryId);
-    const tab = tabOf(row, category);
-    if (tab === null) continue;
-
-    const gel = gelAmount(row, table);
-    if (gel === null) {
+    const counted = countRow(row, categories, table);
+    if (counted.status === 'excluded') continue;
+    if (counted.status === 'no-rate') {
       if (onScreen.has(rowPeriod)) missingRate += 1;
       continue;
     }
 
-    const amount = tab === 'spending' ? -gel : gel;
-    const key = category === undefined ? null : category.id;
-    const sums = buckets[tab].byCategory.get(key) ?? new Map<string, number>();
-    buckets[tab].byCategory.set(key, sums);
+    const { tab, categoryId, amount } = counted;
+    const sums = buckets[tab].byCategory.get(categoryId) ?? new Map<string, number>();
+    buckets[tab].byCategory.set(categoryId, sums);
     addTo(sums, rowPeriod, amount);
     addTo(buckets[tab].total, rowPeriod, amount);
   }

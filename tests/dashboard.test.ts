@@ -3,7 +3,13 @@ import { render } from 'vitest-browser-svelte';
 import { userEvent } from 'vitest/browser';
 import DashboardView from '../src/ui/views/DashboardView.svelte';
 import { categorize } from './helpers/categorize';
-import { MIXED, MIXED_CATEGORIES, MIXED_OPTIONS, MONTHS } from './helpers/dashboardData';
+import {
+  MISSING_RATE_SHORT_POOL,
+  MIXED,
+  MIXED_CATEGORIES,
+  MIXED_OPTIONS,
+  MONTHS,
+} from './helpers/dashboardData';
 import { freezeDate } from './helpers/freezeDate';
 import { importRows } from './helpers/importRows';
 import type { StatementCell } from './helpers/makeStatement';
@@ -55,13 +61,6 @@ const MISSING_RATE: StatementCell[][] = [
 ];
 
 const MISSING_RATE_CATEGORIES = [...CATEGORIES, { name: 'Hidden', type: 'ignore' as const, contains: 'Hidden' }];
-
-const MISSING_RATE_SHORT_POOL: StatementCell[][] = [
-  ['10/03/2025', 'Grocer Mar', -80, null],
-  ['12/04/2025', 'Payment - Amount: USD4.00; Merchant: Grocer Sigma, Online; MCC:1001', null, -4],
-  ['10/05/2025', 'Grocer May', -120, null],
-  ['12/05/2025', 'Payment - Amount: USD9.00; Merchant: Grocer Sigma, Online; MCC:1001', null, -9],
-];
 
 const PER_PERIOD_TOTALS: StatementCell[][] = [
   ['10/01/2025', 'Grocer Jan', -100],

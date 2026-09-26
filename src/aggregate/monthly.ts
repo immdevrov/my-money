@@ -1,6 +1,6 @@
 import type { Category, Transaction } from '../domain/types';
 import { countRow } from './count';
-import { rateTableFrom } from './gel';
+import { ratesFrom } from './gel';
 import { dashboardPeriods, periodOf } from './period';
 
 export type MonthlyTotal = { month: string; spending: number; income: number };
@@ -9,10 +9,11 @@ export function monthlyTotals(input: {
   rows: Transaction[];
   categories: Category[];
   today: string;
+  manualRates: Record<string, number>;
 }): { months: MonthlyTotal[]; missingRate: number } {
   const { rows, today } = input;
   const categories = new Map(input.categories.map((category) => [category.id, category]));
-  const table = rateTableFrom(rows);
+  const rates = ratesFrom(rows, input.manualRates);
 
   const span = dashboardPeriods(rows, today, 'month').span;
   const totals = new Map<string, MonthlyTotal>(
@@ -24,7 +25,7 @@ export function monthlyTotals(input: {
     const total = totals.get(periodOf(row.effectiveDate, 'month'));
     if (total === undefined) continue;
 
-    const counted = countRow(row, categories, table);
+    const counted = countRow(row, categories, rates);
     if (counted.status === 'no-rate') missingRate += 1;
     if (counted.status !== 'counted') continue;
 

@@ -1,6 +1,5 @@
 import type { Category, Transaction } from '../domain/types';
-import type { Rate } from '../pairing/rates';
-import { gelAmount } from './gel';
+import { gelAmount, type Rates } from './gel';
 
 export type Tab = 'spending' | 'income';
 
@@ -23,19 +22,19 @@ function tabOf(row: Transaction, category: Category | undefined): Tab | null {
 export function countRow(
   row: Transaction,
   categories: Map<string, Category>,
-  table: Rate[],
+  rates: Rates,
 ): Counted {
   const category = row.categoryId === null ? undefined : categories.get(row.categoryId);
   const tab = tabOf(row, category);
   if (tab === null) return { status: 'excluded' };
 
-  const gel = gelAmount(row, table);
+  const gel = gelAmount(row, rates);
   if (gel === null) return { status: 'no-rate' };
 
   return {
     status: 'counted',
     tab,
     categoryId: category === undefined ? null : category.id,
-    amount: tab === 'spending' ? -gel : gel,
+    amount: tab === 'spending' ? -gel.minor : gel.minor,
   };
 }

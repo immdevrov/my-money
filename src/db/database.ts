@@ -4,11 +4,16 @@ import { DERIVED_KEYS, type Category, type ImportBatch, type Rule, type StoredTr
 
 const DATABASE_NAME = 'budget-my';
 
+export type SettingsRow =
+  | { key: 'manualRates'; value: Record<string, number> }
+  | { key: 'lastBackupAt'; value: string };
+
 export class BudgetDatabase extends Dexie {
   transactions!: Table<StoredTransaction, string>;
   importBatches!: Table<ImportBatch, string>;
   categories!: Table<Category, string>;
   rules!: Table<Rule, string>;
+  settings!: Table<SettingsRow, string>;
 
   constructor() {
     super(DATABASE_NAME);
@@ -51,6 +56,8 @@ export class BudgetDatabase extends Dexie {
           })
           .then(() => transaction.table('categories').add(CURRENCY_CONVERSION)),
       );
+
+    this.version(4).stores({ settings: 'key' });
   }
 }
 

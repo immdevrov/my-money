@@ -5,7 +5,8 @@
   import { listCategories, saveCategory } from '../../db/categories';
   import { addRuleFromTransaction, listRules, type RuleDraft } from '../../db/rules';
   import { clearManualCategory, listAll, setManualCategory } from '../../db/transactions';
-  import { gelAmount, rateTableFrom } from '../../aggregate/gel';
+  import { gelAmount, ratesFrom } from '../../aggregate/gel';
+  import { getManualRates } from '../../db/settings';
   import {
     inPeriod,
     isPeriod,
@@ -35,6 +36,7 @@
   const transactions = liveQuery(async () => listAll());
   const categories = liveQuery(async () => listCategories());
   const rules = liveQuery(async () => listRules());
+  const manualRates = liveQuery(async () => getManualRates());
 
   let sortKey = $state<SortKey>('effectiveDate');
   let ascending = $state(false);
@@ -158,11 +160,13 @@
     return `${formatMinor(row.amountMinor)} ${row.currency}`;
   }
 
-  const rateTable = $derived(rateTableFrom(sorted));
+  const rates = $derived(ratesFrom(sorted, $manualRates ?? {}));
 
   function inGel(row: Transaction): string {
-    const amount = gelAmount(row, rateTable);
-    return amount === null ? MISSING_RATE : formatMinor(amount);
+    const amount = gelAmount(row, rates);
+    if (amount === null) return MISSING_RATE;
+    const formatted = formatMinor(amount.minor);
+    return amount.source === 'manual' ? `${formatted} (manual rate)` : formatted;
   }
 
   function pairStatus(row: Transaction): string {

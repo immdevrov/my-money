@@ -6,19 +6,19 @@
   import DashboardView from './ui/views/DashboardView.svelte';
   import ImportView from './ui/views/ImportView.svelte';
   import RulesView from './ui/views/RulesView.svelte';
-  import StubView from './ui/views/StubView.svelte';
+  import SettingsView from './ui/views/SettingsView.svelte';
   import TransactionsView from './ui/views/TransactionsView.svelte';
 
-  type Route = { path: string; label: string; phase: number };
+  type Route = { path: string; label: string };
 
-  const importRoute: Route = { path: 'import', label: 'Import', phase: 1 };
+  const importRoute: Route = { path: 'import', label: 'Import' };
   const routes: Route[] = [
     importRoute,
-    { path: 'transactions', label: 'Transactions', phase: 2 },
-    { path: 'rules', label: 'Rules', phase: 4 },
-    { path: 'categories', label: 'Categories', phase: 4 },
-    { path: 'dashboard', label: 'Dashboard', phase: 5 },
-    { path: 'settings', label: 'Settings', phase: 7 },
+    { path: 'transactions', label: 'Transactions' },
+    { path: 'rules', label: 'Rules' },
+    { path: 'categories', label: 'Categories' },
+    { path: 'dashboard', label: 'Dashboard' },
+    { path: 'settings', label: 'Settings' },
   ];
 
   function routeFromHash(): Route {
@@ -66,8 +66,8 @@
     <RulesView />
   {:else if active.path === 'dashboard'}
     <DashboardView />
-  {:else}
-    <StubView title={active.label} phase={active.phase} />
+  {:else if active.path === 'settings'}
+    <SettingsView />
   {/if}
 </main>
 

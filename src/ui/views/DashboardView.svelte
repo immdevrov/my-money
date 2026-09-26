@@ -96,6 +96,7 @@
       today,
       type: periodType,
       period,
+      manualRates: {},
     });
 
     return {
@@ -123,7 +124,12 @@
 
     const today = localToday(new Date());
     const current = periodOf(today, 'month');
-    const { months, missingRate } = monthlyTotals({ rows, categories: cats, today });
+    const { months, missingRate } = monthlyTotals({
+      rows,
+      categories: cats,
+      today,
+      manualRates: {},
+    });
     const labels = months.map(({ month }) =>
       month === current ? `${periodLabel(month)} (in progress)` : periodLabel(month),
     );

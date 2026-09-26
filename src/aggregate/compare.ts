@@ -1,6 +1,6 @@
 import type { Category, Transaction } from '../domain/types';
 import { countRow, type Tab } from './count';
-import { rateTableFrom } from './gel';
+import { ratesFrom } from './gel';
 import { dashboardPeriods, periodOf, samePeriodLastYear, type PeriodType } from './period';
 
 export type Baseline = 'mean' | 'median' | 'previous' | 'yearAgo';
@@ -162,10 +162,11 @@ export function compare(input: {
   today: string;
   type: PeriodType;
   period: string;
+  manualRates: Record<string, number>;
 }): Comparison {
   const { rows, today, type, period } = input;
   const categories = new Map(input.categories.map((category) => [category.id, category]));
-  const table = rateTableFrom(rows);
+  const rates = ratesFrom(rows, input.manualRates);
 
   const { span } = dashboardPeriods(rows, today, type);
   const inSpan = new Set(span);
@@ -185,7 +186,7 @@ export function compare(input: {
     const rowPeriod = periodOf(row.effectiveDate, type);
     if (!inSpan.has(rowPeriod)) continue;
 
-    const counted = countRow(row, categories, table);
+    const counted = countRow(row, categories, rates);
     if (counted.status === 'excluded') continue;
     if (counted.status === 'no-rate') {
       if (onScreen.has(rowPeriod)) missingRate += 1;

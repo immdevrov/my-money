@@ -201,8 +201,8 @@ Specified in `docs/specs/phase-5-dashboard.md`. In short:
    - Period type and period pickers, held in the URL. Mean, median and previous-period baselines side by side.
    - Spending and Income tabs, each with a comparison table. Clicking a row opens Transactions filtered to that category and the selected period, through the URL.
    - Count of transactions excluded from totals for missing rates.
-   - Grouped bar chart per category (current vs baseline). Clicking a bar uses the same drill-down handler as the table row.
-   - Line chart of monthly income and expense over the full history.
+   - Grouped bar chart per category (current vs mean). Clicking a bar uses the same drill-down handler as the table row. From phase 6; see `docs/specs/phase-6-charts.md`.
+   - Line chart of monthly income and expense over the full history, with its own missing-rate count.
 6. **Settings:** manual currency rates, full DB export/import as JSON, import batch list with delete, wipe all data.
 
 ## Build phases
@@ -252,10 +252,7 @@ Phase 4, categorization: see `docs/specs/phase-4-categorization.md`.
 
 Phase 5, comparison: see `docs/specs/phase-5-dashboard.md`.
 
-Phase 6, charts:
-- Each chart's data table matches the comparison table and the monthly totals.
-- `setColorScheme('dark')` re-renders charts without errors.
-- Bar-click drill-down reuses the table row handler and is not tested separately.
+Phase 6, charts: see `docs/specs/phase-6-charts.md`.
 
 Phase 7, settings:
 - A manual rate replaces missing-rate markers and updates totals.

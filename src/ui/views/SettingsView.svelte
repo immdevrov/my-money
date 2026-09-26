@@ -1,6 +1,7 @@
 <script lang="ts">
   import { liveQuery } from 'dexie';
   import { foreignCurrencies } from '../../aggregate/gel';
+  import { deleteBatch, listBatchesWithCounts, type BatchSummary } from '../../db/batches';
   import { getManualRates, setManualRate } from '../../db/settings';
   import { listAll } from '../../db/transactions';
   import { scaledFromDecimal } from '../../import/amount';
@@ -41,6 +42,40 @@
     await setManualRate(currency, rate);
     invalid = { ...invalid, [currency]: false };
     drafts = { ...drafts, [currency]: rate === null ? '' : formatRate(rate) };
+  }
+
+  const imports = liveQuery(async () => listBatchesWithCounts());
+
+  let deleteTarget = $state<BatchSummary | null>(null);
+  let deleteDialogEl = $state<HTMLDialogElement | null>(null);
+
+  $effect(() => {
+    const dialogEl = deleteDialogEl;
+    if (!dialogEl) return;
+    if (deleteTarget && !dialogEl.open) dialogEl.showModal();
+    else if (!deleteTarget && dialogEl.open) dialogEl.close();
+  });
+
+  function pad(value: number): string {
+    return String(value).padStart(2, '0');
+  }
+
+  function localDateTime(iso: string): string {
+    const date = new Date(iso);
+    return (
+      `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+      ` ${pad(date.getHours())}:${pad(date.getMinutes())}`
+    );
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    await deleteBatch(deleteTarget.batch.id);
+    deleteTarget = null;
+  }
+
+  function cancelDelete() {
+    deleteTarget = null;
   }
 </script>
 
@@ -91,6 +126,53 @@
     {/if}
   {/if}
 </section>
+
+<section aria-labelledby="imports-heading">
+  <h2 id="imports-heading">Imports</h2>
+
+  {#if $imports !== undefined}
+    {#if $imports.length === 0}
+      <p>No imports yet.</p>
+    {:else}
+      <table>
+        <caption>Imports</caption>
+        <thead>
+          <tr>
+            <th scope="col">File</th>
+            <th scope="col">Imported</th>
+            <th scope="col">Transactions</th>
+            <th scope="col">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {#each $imports as summary (summary.batch.id)}
+            <tr>
+              <td>{summary.batch.fileName}</td>
+              <td>{localDateTime(summary.batch.importedAt)}</td>
+              <td>{summary.transactions}</td>
+              <td>
+                <button type="button" onclick={() => (deleteTarget = summary)}>
+                  Delete import {summary.batch.fileName}
+                </button>
+              </td>
+            </tr>
+          {/each}
+        </tbody>
+      </table>
+    {/if}
+  {/if}
+</section>
+
+<dialog bind:this={deleteDialogEl} aria-labelledby="delete-import-heading" onclose={cancelDelete}>
+  <h2 id="delete-import-heading">Delete import</h2>
+  {#if deleteTarget}
+    <p>
+      Delete import {deleteTarget.batch.fileName}? This removes {deleteTarget.transactions} transactions.
+    </p>
+  {/if}
+  <button type="button" onclick={confirmDelete}>Delete</button>
+  <button type="button" onclick={cancelDelete} autofocus>Cancel</button>
+</dialog>
 
 <style>
   table {

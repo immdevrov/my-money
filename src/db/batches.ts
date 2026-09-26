@@ -18,3 +18,24 @@ export async function listBatches(): Promise<ImportBatch[]> {
   await openDatabase();
   return await db.importBatches.toArray();
 }
+
+export type BatchSummary = { batch: ImportBatch; transactions: number };
+
+export async function listBatchesWithCounts(): Promise<BatchSummary[]> {
+  await openDatabase();
+  const batches = await db.importBatches.orderBy('importedAt').reverse().toArray();
+  return await Promise.all(
+    batches.map(async (batch) => ({
+      batch,
+      transactions: await db.transactions.where('importBatchId').equals(batch.id).count(),
+    })),
+  );
+}
+
+export async function deleteBatch(id: string): Promise<void> {
+  await openDatabase();
+  await db.transaction('rw', db.importBatches, db.transactions, async () => {
+    await db.importBatches.delete(id);
+    await db.transactions.where('importBatchId').equals(id).delete();
+  });
+}

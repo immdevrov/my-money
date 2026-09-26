@@ -2,8 +2,9 @@
   import { liveQuery } from 'dexie';
   import { foreignCurrencies } from '../../aggregate/gel';
   import { deleteBatch, listBatchesWithCounts, type BatchSummary } from '../../db/batches';
-  import { wipeAll } from '../../db/backup';
-  import { getManualRates, setManualRate } from '../../db/settings';
+  import { exportBackup, wipeAll } from '../../db/backup';
+  import { backupFileName, calendarDaysSince } from '../../db/backupFormat';
+  import { getLastBackupAt, getManualRates, setManualRate } from '../../db/settings';
   import { listAll } from '../../db/transactions';
   import { scaledFromDecimal } from '../../import/amount';
   import { formatRate } from '../../import/details/conversion';
@@ -45,6 +46,27 @@
     await setManualRate(currency, rate);
     invalid = { ...invalid, [currency]: false };
     drafts = { ...drafts, [currency]: rate === null ? '' : formatRate(rate) };
+  }
+
+  const lastBackupAt = liveQuery(async () => getLastBackupAt());
+
+  function lastBackupText(iso: string | null): string {
+    if (iso === null) return 'Never backed up.';
+    const days = calendarDaysSince(iso, new Date());
+    if (days <= 0) return 'Last backup: today.';
+    if (days === 1) return 'Last backup: 1 day ago.';
+    return `Last backup: ${days} days ago.`;
+  }
+
+  async function downloadBackup() {
+    const backup = await exportBackup();
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = backupFileName(backup.exportedAt);
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
   const imports = liveQuery(async () => listBatchesWithCounts());
@@ -154,6 +176,14 @@
         </tbody>
       </table>
     {/if}
+  {/if}
+</section>
+
+<section aria-labelledby="backup-heading">
+  <h2 id="backup-heading">Backup</h2>
+  <button type="button" onclick={downloadBackup}>Export backup</button>
+  {#if $lastBackupAt !== undefined}
+    <p>{lastBackupText($lastBackupAt)}</p>
   {/if}
 </section>
 

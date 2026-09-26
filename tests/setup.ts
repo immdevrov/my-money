@@ -18,6 +18,7 @@ let original: typeof console.error = console.error;
 
 beforeEach(async () => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   await setColorScheme('light');
   location.hash = '';
   localStorage.clear();

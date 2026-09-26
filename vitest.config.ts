@@ -1,6 +1,11 @@
 import { playwright } from '@vitest/browser-playwright';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import { defineConfig } from 'vitest/config';
+import type { BrowserCommand } from 'vitest/node';
+
+const setColorScheme: BrowserCommand<['light' | 'dark']> = async (context, scheme) => {
+  await context.page.emulateMedia({ colorScheme: scheme });
+};
 
 function browserProject(name: string, include: string[], exclude: string[] = []) {
   return {
@@ -20,6 +25,7 @@ function browserProject(name: string, include: string[], exclude: string[] = [])
           contextOptions: { timezoneId: 'Asia/Tbilisi' },
         }),
         instances: [{ browser: 'chromium' as const }],
+        commands: { setColorScheme },
       },
     },
   };

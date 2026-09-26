@@ -11,6 +11,7 @@ import {
 } from './helpers/dashboardData';
 import { freezeDate } from './helpers/freezeDate';
 import { importRows } from './helpers/importRows';
+import { setColorScheme } from './helpers/setColorScheme';
 
 type Screen = Awaited<ReturnType<typeof render>>;
 
@@ -150,6 +151,24 @@ test('the monthly chart plots every month of the history', SLOW, async () => {
   await expectChartRow(screen, chart, 1, ['2025-01', '120.00', '0.00']);
   await expectChartRow(screen, chart, 5, ['2025-05', '147.00', '1505.00']);
   await expectRowCount(screen, chart, 7);
+});
+
+test('charts re-render in the dark color scheme', SLOW, async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(MIXED, MIXED_OPTIONS);
+  await categorize(MIXED_CATEGORIES);
+
+  const screen = await render(DashboardView);
+  await expectChartRow(screen, 'Spending by category', 1, ['Groceries', '110.00', '57.50']);
+
+  await setColorScheme('dark');
+  expect(matchMedia('(prefers-color-scheme: dark)').matches).toBe(true);
+
+  await expectChartRow(screen, 'Spending by category', 1, ['Groceries', '110.00', '57.50']);
+  await expectChartRow(screen, 'Monthly spending and income', 5, ['2025-05', '147.00', '1505.00']);
+
+  await screen.getByRole('tab', { name: 'Income' }).click();
+  await expectChartRow(screen, 'Income by category', 1, ['Salary', '1500.00', '750.00']);
 });
 
 test('the monthly chart counts the rows it leaves out for missing rates', SLOW, async () => {

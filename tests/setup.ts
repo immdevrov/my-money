@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, vi } from 'vitest';
 import { db } from '../src/db/database';
+import { setColorScheme } from './helpers/setColorScheme';
 
 const DATABASE_NAME = 'budget-my';
 
@@ -17,6 +18,7 @@ let original: typeof console.error = console.error;
 
 beforeEach(async () => {
   vi.useRealTimers();
+  await setColorScheme('light');
   location.hash = '';
   localStorage.clear();
   db.close();

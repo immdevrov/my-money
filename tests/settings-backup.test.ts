@@ -261,6 +261,9 @@ test('a restore shows the restored rate in the rate input', SLOW, async () => {
   const rateInput = screen.getByLabelText('Manual rate for USD');
   await expect.element(rateInput).toHaveValue('3');
 
+  await rateInput.fill('4');
+  await expect.element(rateInput).toHaveValue('4');
+
   await restore(screen, file);
 
   await expect.element(screen.getByRole('status')).toHaveTextContent(/^Backup restored\.$/);

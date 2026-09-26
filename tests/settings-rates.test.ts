@@ -1,7 +1,9 @@
 import { expect, test } from 'vitest';
 import { render } from 'vitest-browser-svelte';
+import DashboardView from '../src/ui/views/DashboardView.svelte';
 import SettingsView from '../src/ui/views/SettingsView.svelte';
 import TransactionsView from '../src/ui/views/TransactionsView.svelte';
+import { freezeDate } from './helpers/freezeDate';
 import { importRows } from './helpers/importRows';
 import type { StatementCell } from './helpers/makeStatement';
 import { remount } from './helpers/remount';
@@ -56,9 +58,26 @@ const CAFE_EUR: StatementCell[] = [
 
 const ALL_FIVE = [CONVERSION_GEL, CONVERSION_USD, STREAM_AFTER, STREAM_JAN, CAFE_EUR];
 
+const DASHBOARD_OPTIONS = { header: ['Date', 'Details', 'GEL', 'USD'] };
+
+const DASHBOARD_ROWS: StatementCell[][] = [
+  ['10/05/2025', 'Grocer payment', -20, null],
+  ['12/05/2025', 'Payment - Amount: USD10.00; Merchant: Stream Beta, Online; MCC:1005', null, -10],
+];
+
 async function saveUsdRate(screen: Screen, value: string) {
   await screen.getByLabelText('Manual rate for USD').fill(value);
   await screen.getByRole('button', { name: 'Save rate for USD' }).click();
+}
+
+function spendingRows(screen: Screen) {
+  return screen.getByRole('table', { name: 'Spending comparison' }).getByRole('row');
+}
+
+async function expectTotalSpendingCurrent(screen: Screen, expected: string) {
+  const row = spendingRows(screen).nth(2);
+  await expect.element(row.getByRole('rowheader')).toHaveTextContent(/^Total spending$/);
+  await expect.element(row.getByRole('cell').first()).toHaveTextContent(new RegExp(`^${expected}$`));
 }
 
 test('a manual rate prices only what no conversion prices, and is marked', SLOW, async () => {
@@ -132,4 +151,22 @@ test('with only GEL rows there are no rates to set', SLOW, async () => {
 
   await expect.element(screen.getByText('No foreign-currency transactions.')).toBeVisible();
   await expect.element(screen.getByRole('table', { name: 'Manual rates' })).not.toBeInTheDocument();
+});
+
+test('a manual rate enters the Dashboard totals', SLOW, async () => {
+  freezeDate('2025-06-15T12:00:00');
+  await importRows(DASHBOARD_ROWS, DASHBOARD_OPTIONS);
+
+  const before = await render(DashboardView);
+  await expect
+    .element(before.getByText('1 transaction excluded from totals: no exchange rate.'))
+    .toBeVisible();
+  await expectTotalSpendingCurrent(before, '20\\.00');
+
+  const settings = await remount(SettingsView);
+  await saveUsdRate(settings, '2.5');
+
+  const after = await remount(DashboardView);
+  await expectTotalSpendingCurrent(after, '45\\.00');
+  await expect.element(after.getByText(/no exchange rate/)).not.toBeInTheDocument();
 });

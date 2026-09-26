@@ -17,6 +17,7 @@
   } from '../../aggregate/period';
   import { monthlyTotals } from '../../aggregate/monthly';
   import { listCategories } from '../../db/categories';
+  import { getManualRates } from '../../db/settings';
   import { listAll } from '../../db/transactions';
   import { formatMinor } from '../../import/amount';
   import Chart, { type ChartSeries } from '../charts/Chart.svelte';
@@ -32,6 +33,7 @@
 
   const transactions = liveQuery(async () => listAll());
   const categories = liveQuery(async () => listCategories());
+  const manualRates = liveQuery(async () => getManualRates());
 
   function dashboardQuery(): Record<QueryKey, string> {
     const params = readQuery();
@@ -79,7 +81,8 @@
   const view = $derived.by(() => {
     const rows = $transactions;
     const cats = $categories;
-    if (rows === undefined || cats === undefined || rows.length === 0) return null;
+    const rates = $manualRates;
+    if (rows === undefined || cats === undefined || rates === undefined || rows.length === 0) return null;
 
     const today = localToday(new Date());
     const { span, current, defaultPeriod } = dashboardPeriods(rows, today, periodType);
@@ -96,7 +99,7 @@
       today,
       type: periodType,
       period,
-      manualRates: {},
+      manualRates: rates,
     });
 
     return {
@@ -120,7 +123,8 @@
   const monthly = $derived.by(() => {
     const rows = $transactions;
     const cats = $categories;
-    if (rows === undefined || cats === undefined || rows.length === 0) return null;
+    const rates = $manualRates;
+    if (rows === undefined || cats === undefined || rates === undefined || rows.length === 0) return null;
 
     const today = localToday(new Date());
     const current = periodOf(today, 'month');
@@ -128,7 +132,7 @@
       rows,
       categories: cats,
       today,
-      manualRates: {},
+      manualRates: rates,
     });
     const labels = months.map(({ month }) =>
       month === current ? `${periodLabel(month)} (in progress)` : periodLabel(month),

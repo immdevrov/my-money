@@ -58,9 +58,9 @@ A "Manual rates" section holds a table with the columns **Currency**, **Without 
 - Rows: every non-GEL currency among the transactions, and every currency with a saved manual rate, in alphabetical order.
 - **Without a conversion rate** counts the rows in that currency that no conversion pair prices, whether or not a manual rate covers them. It shows where a manual rate matters.
 - The rate cell holds an input labelled `Manual rate for {CUR}`, prefilled with the saved rate formatted by `formatRate`, and a button `Save rate for {CUR}`.
-  - A positive decimal with up to 6 fraction digits is saved, parsed digit-wise with `scaledFromDecimal` at 6 decimals.
+  - A positive decimal with up to 6 whole digits and up to 6 fraction digits is saved, parsed digit-wise with `scaledFromDecimal` at 6 decimals.
   - An empty input clears the rate.
-  - Anything else, including 0, shows `Enter a positive rate with up to 6 decimals, or leave it empty to clear it.` in that row and saves nothing.
+  - Anything else, including 0, shows `Enter a positive rate below 1000000 with up to 6 decimals, or leave it empty to clear it.` in that row and saves nothing.
 - With no rows, the section shows `No foreign-currency transactions.`
 
 ### Transactions view

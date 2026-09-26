@@ -14,7 +14,8 @@ const SLOW = { timeout: 5000 };
 
 const OPTIONS = { header: ['Date', 'Details', 'GEL', 'USD', 'EUR'] };
 
-const INVALID_MESSAGE = 'Enter a positive rate with up to 6 decimals, or leave it empty to clear it.';
+const INVALID_MESSAGE =
+  'Enter a positive rate below 1000000 with up to 6 decimals, or leave it empty to clear it.';
 
 const CONVERSION_GEL: StatementCell[] = [
   '10/02/2025',
@@ -114,7 +115,7 @@ test('clearing a manual rate brings the marker back', SLOW, async () => {
 test('an invalid rate is refused and saves nothing', SLOW, async () => {
   await importRows(ALL_FIVE, OPTIONS);
 
-  for (const value of ['abc', '0', '2.1234567']) {
+  for (const value of ['abc', '0', '2.1234567', '1234567']) {
     const settings = await remount(SettingsView);
     await expect.element(settings.getByText(INVALID_MESSAGE)).not.toBeInTheDocument();
     await saveUsdRate(settings, value);

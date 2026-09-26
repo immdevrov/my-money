@@ -17,8 +17,9 @@
   import { formatRate } from '../../import/details/conversion';
 
   const RATE_DECIMALS = 6;
-  const RATE_INPUT = /^\d+(\.\d{1,6})?$/;
-  const INVALID_RATE = 'Enter a positive rate with up to 6 decimals, or leave it empty to clear it.';
+  const RATE_INPUT = /^\d{1,6}(\.\d{1,6})?$/;
+  const INVALID_RATE =
+    'Enter a positive rate below 1000000 with up to 6 decimals, or leave it empty to clear it.';
   const WIPE_MESSAGE =
     'Delete all transactions, imports, categories, rules and manual rates? This cannot be undone. Export a backup first if you may need them.';
 
@@ -52,7 +53,9 @@
     }
     await setManualRate(currency, rate);
     invalid = { ...invalid, [currency]: false };
-    drafts = { ...drafts, [currency]: rate === null ? '' : formatRate(rate) };
+    const next = { ...drafts };
+    delete next[currency];
+    drafts = next;
   }
 
   const lastBackupAt = liveQuery(async () => getLastBackupAt());
@@ -126,6 +129,8 @@
     pendingRestore = null;
     try {
       await restoreBackup(backup);
+      drafts = {};
+      invalid = {};
       restoreOutcome = { ok: true, text: 'Backup restored.' };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -199,6 +204,8 @@
 
   async function confirmWipe() {
     await wipeAll();
+    drafts = {};
+    invalid = {};
     wipeOpen = false;
   }
 </script>

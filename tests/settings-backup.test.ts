@@ -183,7 +183,10 @@ async function expectRecorded(screen: Screen, recorded: Recorded) {
 test('a backup restores everything identically, and it survives a reload', ROUND_TRIP, async () => {
   freezeDate('2025-06-15T12:00:00');
   await importRows([CONVERSION_GEL, CONVERSION_USD, STREAM_JAN, GROCER, SHOP_ALPHA], OPTIONS);
-  await categorize([{ name: 'Groceries', contains: 'Grocer' }]);
+  await categorize([
+    { name: 'Groceries', contains: 'Grocer' },
+    { name: 'Shopping', contains: 'Shop' },
+  ]);
 
   location.hash = '#/settings';
   let screen = await render(App);
@@ -206,14 +209,21 @@ test('a backup restores everything identically, and it survives a reload', ROUND
   const choices = categoryChoices(screen);
 
   await screen.getByRole('link', { name: 'Categories' }).click();
-  await expect.element(tableRows(screen, 'Categories')).toHaveLength(3);
+  await expect.element(tableRows(screen, 'Categories')).toHaveLength(4);
   const categories = rowTexts(screen, 'Categories');
 
   await screen.getByRole('link', { name: 'Rules' }).click();
+  await expect
+    .element(tableRows(screen, 'Rules').nth(1).getByRole('cell').nth(4))
+    .toHaveTextContent(/^Shopping$/);
+  await screen.getByRole('button', { name: /^Move rule counterparty contains Grocer up$/ }).click();
   const ruleCells = tableRows(screen, 'Rules').nth(1).getByRole('cell');
   await expect.element(ruleCells.nth(4)).toHaveTextContent(/^Groceries$/);
   await expect.element(ruleCells.nth(5)).toHaveTextContent(/^1$/);
-  await expect.element(tableRows(screen, 'Rules')).toHaveLength(2);
+  await expect
+    .element(tableRows(screen, 'Rules').nth(2).getByRole('cell').nth(4))
+    .toHaveTextContent(/^Shopping$/);
+  await expect.element(tableRows(screen, 'Rules')).toHaveLength(3);
   const rules = rowTexts(screen, 'Rules');
 
   const recorded: Recorded = { transactions, choices, categories, rules, imports, rate };
@@ -227,7 +237,7 @@ test('a backup restores everything identically, and it survives a reload', ROUND
   await expect
     .element(
       restoreDialog(screen).getByText(
-        'Replace all data with this backup? It holds 5 transactions, 2 categories and 1 rules. Your current 0 transactions will be replaced.',
+        'Replace all data with this backup? It holds 5 transactions, 3 categories and 2 rules. Your current 0 transactions will be replaced.',
       ),
     )
     .toBeVisible();
@@ -239,6 +249,22 @@ test('a backup restores everything identically, and it survives a reload', ROUND
 
   screen = await remount(App);
   await expectRecorded(screen, recorded);
+});
+
+test('a restore shows the restored rate in the rate input', SLOW, async () => {
+  await importRows([STREAM_JAN], OPTIONS);
+  const screen = await render(SettingsView);
+  await saveUsdRate(screen, '2.5');
+  const file = await exportBackup(screen);
+
+  await saveUsdRate(screen, '3');
+  const rateInput = screen.getByLabelText('Manual rate for USD');
+  await expect.element(rateInput).toHaveValue('3');
+
+  await restore(screen, file);
+
+  await expect.element(screen.getByRole('status')).toHaveTextContent(/^Backup restored\.$/);
+  await expect.element(rateInput).toHaveValue('2.5');
 });
 
 test('a restore reports the age of the backup it restored', SLOW, async () => {

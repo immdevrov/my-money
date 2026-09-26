@@ -2,6 +2,7 @@
   import { liveQuery } from 'dexie';
   import { foreignCurrencies } from '../../aggregate/gel';
   import { deleteBatch, listBatchesWithCounts, type BatchSummary } from '../../db/batches';
+  import { wipeAll } from '../../db/backup';
   import { getManualRates, setManualRate } from '../../db/settings';
   import { listAll } from '../../db/transactions';
   import { scaledFromDecimal } from '../../import/amount';
@@ -10,6 +11,8 @@
   const RATE_DECIMALS = 6;
   const RATE_INPUT = /^\d+(\.\d{1,6})?$/;
   const INVALID_RATE = 'Enter a positive rate with up to 6 decimals, or leave it empty to clear it.';
+  const WIPE_MESSAGE =
+    'Delete all transactions, imports, categories, rules and manual rates? This cannot be undone. Export a backup first if you may need them.';
 
   const rateData = liveQuery(async () => {
     const [rows, manual] = await Promise.all([listAll(), getManualRates()]);
@@ -76,6 +79,33 @@
 
   function cancelDelete() {
     deleteTarget = null;
+  }
+
+  let wipeOpen = $state(false);
+  let wipeDialogEl = $state<HTMLDialogElement | null>(null);
+
+  $effect(() => {
+    const dialogEl = wipeDialogEl;
+    if (!dialogEl) return;
+    if (wipeOpen && !dialogEl.open) dialogEl.showModal();
+    else if (!wipeOpen && dialogEl.open) dialogEl.close();
+  });
+
+  function openWipe() {
+    wipeOpen = true;
+  }
+
+  function cancelWipe() {
+    wipeOpen = false;
+  }
+
+  function onWipeDialogClose() {
+    if (wipeOpen) cancelWipe();
+  }
+
+  async function confirmWipe() {
+    await wipeAll();
+    wipeOpen = false;
   }
 </script>
 
@@ -172,6 +202,18 @@
   {/if}
   <button type="button" onclick={confirmDelete}>Delete</button>
   <button type="button" onclick={cancelDelete} autofocus>Cancel</button>
+</dialog>
+
+<section aria-labelledby="wipe-heading">
+  <h2 id="wipe-heading">Wipe all data</h2>
+  <button type="button" onclick={openWipe}>Wipe all data</button>
+</section>
+
+<dialog bind:this={wipeDialogEl} aria-labelledby="wipe-dialog-heading" onclose={onWipeDialogClose}>
+  <h2 id="wipe-dialog-heading">Wipe all data</h2>
+  <p>{WIPE_MESSAGE}</p>
+  <button type="button" onclick={confirmWipe}>Wipe</button>
+  <button type="button" onclick={cancelWipe} autofocus>Cancel</button>
 </dialog>
 
 <style>

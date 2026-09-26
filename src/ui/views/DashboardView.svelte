@@ -17,6 +17,7 @@
   import { listCategories } from '../../db/categories';
   import { listAll } from '../../db/transactions';
   import { formatMinor } from '../../import/amount';
+  import Chart, { type ChartSeries } from '../charts/Chart.svelte';
   import { onHashChange, readQuery, replaceQuery } from '../hashQuery';
 
   type Tab = 'spending' | 'income';
@@ -131,6 +132,25 @@
     return `#/transactions?${params}`;
   }
 
+  function rowHref(period: string, row: ComparisonRow): string {
+    return drillHref(period, row.categoryId ?? 'uncategorized');
+  }
+
+  function categorySeries(tableData: ComparisonTable, color: string): ChartSeries[] {
+    const series: ChartSeries[] = [
+      { label: 'Current', values: tableData.rows.map((row) => row.current), color },
+    ];
+    const mean = baselineColumns.find((column) => column.baseline === 'mean');
+    if (mean !== undefined && tableData.total.mean.value !== 'insufficient') {
+      series.push({
+        label: mean.label,
+        values: tableData.rows.map((row) => (row.mean.value === 'insufficient' ? 0 : row.mean.value)),
+        color: '--chart-baseline',
+      });
+    }
+    return series;
+  }
+
   function selectTab(tab: Tab) {
     update({ tab });
   }
@@ -215,6 +235,7 @@
       id="dashboard-panel-spending"
       aria-labelledby="dashboard-tab-spending"
     >
+      {@render categoryChart('Spending by category', '--chart-spending', view.spending, view.period)}
       {@render comparisonTable('Spending comparison', view.spending, view.period)}
     </div>
   {:else}
@@ -224,10 +245,27 @@
       id="dashboard-panel-income"
       aria-labelledby="dashboard-tab-income"
     >
+      {@render categoryChart('Income by category', '--chart-income', view.income, view.period)}
       {@render comparisonTable('Income comparison', view.income, view.period)}
     </div>
   {/if}
 {/if}
+
+{#snippet categoryChart(name: string, color: string, tableData: ComparisonTable, period: string)}
+  {#if tableData.rows.length > 0}
+    <Chart
+      kind="bar"
+      {name}
+      labelHeader="Category"
+      labels={tableData.rows.map((row) => row.name)}
+      series={categorySeries(tableData, color)}
+      onselect={(index) => {
+        const row = tableData.rows[index];
+        if (row !== undefined) location.hash = rowHref(period, row);
+      }}
+    />
+  {/if}
+{/snippet}
 
 {#snippet comparisonTable(caption: string, tableData: ComparisonTable, period: string)}
   <div class="table-scroll">
@@ -245,7 +283,7 @@
       </thead>
       <tbody>
         {#each tableData.rows as row (row.categoryId)}
-          {@render comparisonRow(row, drillHref(period, row.categoryId ?? 'uncategorized'))}
+          {@render comparisonRow(row, rowHref(period, row))}
         {/each}
       </tbody>
       <tfoot>

@@ -40,6 +40,10 @@
   --palette-10: #4f46e5;
   --palette-11: #92400e;
   --palette-12: #6b7280;
+
+  --chart-spending: #2a78d6;
+  --chart-income: #eb6834;
+  --chart-baseline: #767676;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -71,6 +75,10 @@
     --palette-10: #818cf8;
     --palette-11: #c08457;
     --palette-12: #9ca3af;
+
+    --chart-spending: #3987e5;
+    --chart-income: #d95926;
+    --chart-baseline: #a3a3a3;
   }
 }
 

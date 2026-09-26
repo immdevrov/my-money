@@ -17,6 +17,7 @@
     "test:scratch": "vitest run --project scratch --passWithNoTests"
   },
   "dependencies": {
+    "chart.js": "4.5.1",
     "dexie": "4.4.6",
     "read-excel-file": "9.3.10"
   },

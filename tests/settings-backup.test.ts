@@ -242,7 +242,9 @@ test('a backup restores everything identically, and it survives a reload', ROUND
     )
     .toBeVisible();
   await restoreDialog(screen).getByRole('button', { name: /^Restore$/ }).click();
-  await expect.element(screen.getByRole('status')).toHaveTextContent(/^Backup restored\.$/);
+  await expect
+    .element(screen.getByRole('status').filter({ hasText: /^Backup restored\.$/ }))
+    .toBeVisible();
   await expect.element(restoreDialog(screen)).not.toBeInTheDocument();
 
   await expectRecorded(screen, recorded);
@@ -266,7 +268,9 @@ test('a restore shows the restored rate in the rate input', SLOW, async () => {
 
   await restore(screen, file);
 
-  await expect.element(screen.getByRole('status')).toHaveTextContent(/^Backup restored\.$/);
+  await expect
+    .element(screen.getByRole('status').filter({ hasText: /^Backup restored\.$/ }))
+    .toBeVisible();
   await expect.element(rateInput).toHaveValue('2.5');
 });
 
@@ -389,7 +393,9 @@ test('a backup without Currency conversion gets it back on restore', SLOW, async
     screen,
     new File([JSON.stringify(backup)], 'no-conversion.json', { type: 'application/json' }),
   );
-  await expect.element(screen.getByRole('status')).toHaveTextContent(/^Backup restored\.$/);
+  await expect
+    .element(screen.getByRole('status').filter({ hasText: /^Backup restored\.$/ }))
+    .toBeVisible();
 
   screen = await remount(CategoriesView);
   await expect.element(tableRows(screen, 'Categories')).toHaveLength(2);

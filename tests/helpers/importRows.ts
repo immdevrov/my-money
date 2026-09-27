@@ -11,7 +11,9 @@ export async function importRows(
 
   await screen.getByLabelText('Statement file').upload(await makeStatement(rows, options));
   await screen.getByRole('button', { name: 'Confirm import' }).click();
-  await expect.element(screen.getByRole('status')).toBeVisible();
+  await expect
+    .element(screen.getByRole('status').filter({ hasText: /^Imported \d+ rows\.$/ }))
+    .toBeVisible();
 
   cleanup();
 }

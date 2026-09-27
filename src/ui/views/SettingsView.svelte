@@ -1,5 +1,7 @@
 <script lang="ts">
   import { liveQuery } from 'dexie';
+  import { onDestroy } from 'svelte';
+  import { fade } from 'svelte/transition';
   import { foreignCurrencies } from '../../aggregate/gel';
   import { deleteBatch, listBatchesWithCounts, type BatchSummary } from '../../db/batches';
   import { exportBackup, restoreBackup, wipeAll } from '../../db/backup';
@@ -30,6 +32,32 @@
 
   let drafts = $state<Record<string, string>>({});
   let invalid = $state<Record<string, boolean>>({});
+  let saved = $state<Record<string, 'set' | 'cleared'>>({});
+  const savedTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const SAVED_VISIBLE_MS = 2500;
+
+  function setSaved(currency: string, outcome: 'set' | 'cleared' | null) {
+    clearTimeout(savedTimers.get(currency));
+    savedTimers.delete(currency);
+    const next = { ...saved };
+    if (outcome === null) {
+      delete next[currency];
+    } else {
+      next[currency] = outcome;
+      savedTimers.set(currency, setTimeout(() => setSaved(currency, null), SAVED_VISIBLE_MS));
+    }
+    saved = next;
+  }
+
+  function resetRateRows() {
+    drafts = {};
+    invalid = {};
+    savedTimers.forEach(clearTimeout);
+    savedTimers.clear();
+    saved = {};
+  }
+
+  onDestroy(() => savedTimers.forEach(clearTimeout));
 
   function savedText(currency: string): string {
     const saved = $rateData?.manual[currency];
@@ -49,10 +77,12 @@
     const rate = parseRate(drafts[currency] ?? savedText(currency));
     if (rate === 'invalid') {
       invalid = { ...invalid, [currency]: true };
+      setSaved(currency, null);
       return;
     }
     await setManualRate(currency, rate);
     invalid = { ...invalid, [currency]: false };
+    setSaved(currency, rate === null ? 'cleared' : 'set');
     const next = { ...drafts };
     delete next[currency];
     drafts = next;
@@ -129,8 +159,7 @@
     pendingRestore = null;
     try {
       await restoreBackup(backup);
-      drafts = {};
-      invalid = {};
+      resetRateRows();
       restoreOutcome = { ok: true, text: 'Backup restored.' };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -204,8 +233,7 @@
 
   async function confirmWipe() {
     await wipeAll();
-    drafts = {};
-    invalid = {};
+    resetRateRows();
     wipeOpen = false;
   }
 </script>
@@ -241,10 +269,18 @@
                     aria-label={`Manual rate for ${currency}`}
                     bind:value={
                       () => drafts[currency] ?? savedText(currency),
-                      (value) => (drafts = { ...drafts, [currency]: value })
+                      (value) => {
+                        drafts = { ...drafts, [currency]: value };
+                        setSaved(currency, null);
+                      }
                     }
                   />
                   <button type="submit" aria-label={`Save rate for ${currency}`}>Save</button>
+                  <span class="saved" role="status">
+                    {#if saved[currency]}
+                      <span out:fade>{saved[currency] === 'set' ? 'Saved' : 'Cleared'}</span>
+                    {/if}
+                  </span>
                 </form>
                 {#if invalid[currency]}
                   <p class="error" role="alert">{INVALID_RATE}</p>
@@ -371,6 +407,12 @@
 
   .rate input {
     width: 10ch;
+  }
+
+  .saved {
+    align-self: center;
+    color: var(--success);
+    font-size: var(--text-sm);
   }
 
   .restore {
